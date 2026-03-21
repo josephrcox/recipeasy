@@ -9,6 +9,6 @@ echo "==> Installing backend dependencies..."
 npm install --prefix backend
 
 echo "==> Restarting server..."
-pm2 restart recipeasy
+pm2 restart ecosystem.config.cjs
 
 echo "==> Done!"
