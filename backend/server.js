@@ -111,6 +111,7 @@ app.patch('/api/cookbooks/:id', requireUser, (req, res) => {
 app.delete('/api/cookbooks/:id', requireUser, (req, res) => {
   const cb = getCookbook(req.params.id, req.userId)
   if (!cb) return res.status(404).json({ error: 'Cookbook not found' })
+  if (cb.is_default) return res.status(403).json({ error: 'Cannot delete the default cookbook' })
   deleteCookbook(req.params.id, req.userId)
   res.json({ ok: true })
 })

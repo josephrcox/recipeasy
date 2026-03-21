@@ -4,7 +4,7 @@
   import Toast from './Toast.svelte'
   import BottomNav from './BottomNav.svelte'
 
-  let { cookbookId, onNavigate, route } = $props()
+  let { onNavigate, route } = $props()
 
   let url = $state('')
   let step = $state(null)
@@ -13,6 +13,8 @@
   let saving = $state(false)
   let error = $state(null)
   let showToast = $state(false)
+  let cookbooks = $state([])
+  let selectedCookbookId = $state(null)
 
   const steps = ['downloading', 'extracting', 'analyzing']
   const stepLabels = {
@@ -20,6 +22,18 @@
     extracting:  'Extracting frames',
     analyzing:   'Analyzing with Claude'
   }
+
+  async function loadCookbooks() {
+    try {
+      const res = await fetch('/api/cookbooks', { credentials: 'include' })
+      cookbooks = await res.json()
+      // Default to the Uncategorized (is_default) cookbook
+      const def = cookbooks.find(c => c.is_default)
+      if (def) selectedCookbookId = def.id
+    } catch {}
+  }
+
+  loadCookbooks()
 
   function isTikTokUrl(val) {
     try {
@@ -50,10 +64,10 @@
   }
 
   async function save() {
-    if (!result) return
+    if (!result || !selectedCookbookId) return
     saving = true
     try {
-      const res = await fetch(`/api/cookbooks/${cookbookId}/recipes`, {
+      const res = await fetch(`/api/cookbooks/${selectedCookbookId}/recipes`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -65,8 +79,9 @@
         })
       })
       if (!res.ok) throw new Error('Failed to save')
+      const saved = await res.json()
       showToast = true
-      setTimeout(() => onNavigate('cookbook', { cookbookId }), 1200)
+      setTimeout(() => onNavigate('recipe', { recipeId: saved.id, cookbookId: selectedCookbookId }), 1200)
     } catch (err) {
       error = err.message
       saving = false
@@ -78,7 +93,7 @@
 
 <div class="page-with-nav">
   <div class="top-bar">
-    <button class="icon-btn" onclick={() => onNavigate('cookbook', { cookbookId })}>
+    <button class="icon-btn" onclick={() => onNavigate('cookbooks')}>
       <ArrowLeft size={20} />
     </button>
     <h1>Add Recipe</h1>
@@ -173,9 +188,21 @@
             {/each}
           </ol>
 
+          <div class="divider" style="margin:14px 0"></div>
+
+          <!-- Cookbook picker -->
+          <div class="cookbook-row">
+            <span class="cookbook-label">📁 Save to</span>
+            <select class="cookbook-select" bind:value={selectedCookbookId}>
+              {#each cookbooks as cb}
+                <option value={cb.id}>{cb.name}</option>
+              {/each}
+            </select>
+          </div>
+
           <div class="result-actions">
-            <button class="btn-primary save-btn" onclick={save} disabled={saving}>
-              {saving ? 'Saving…' : '✓ Save to Cookbook'}
+            <button class="btn-primary save-btn" onclick={save} disabled={saving || !selectedCookbookId}>
+              {saving ? 'Saving…' : '✓ Save Recipe'}
             </button>
             <button class="btn-ghost" onclick={reset}>Discard</button>
           </div>
@@ -288,7 +315,33 @@
   }
   .result-steps p { font-size: 0.88rem; line-height: 1.55; color: var(--text); }
 
-  .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  /* Cookbook picker */
+  .cookbook-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .cookbook-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .cookbook-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+    appearance: auto;
+  }
+  .cookbook-select:focus { outline: none; border-color: var(--accent); }
+
+  .result-actions { display: flex; flex-direction: column; gap: 10px; }
   .save-btn { background: var(--success); }
   .save-btn:hover:not(:disabled) { background: #259052; }
   .divider { height: 1px; background: var(--border); }

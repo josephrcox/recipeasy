@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const db = new Database(path.join(__dirname, 'recipeasy.db'))
 
-// Enable WAL mode for better concurrent read performance
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
 
@@ -19,6 +18,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -33,12 +33,33 @@ db.exec(`
   );
 `)
 
+// Migration: add is_default column if it doesn't exist yet
+const hasFlagCol = db.prepare("PRAGMA table_info(cookbooks)").all().some(c => c.name === 'is_default')
+if (!hasFlagCol) {
+  db.exec('ALTER TABLE cookbooks ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0')
+}
+
+// Migration: create Uncategorized cookbook for any existing users who don't have one
+db.exec(`
+  INSERT INTO cookbooks (user_id, name, is_default)
+  SELECT id, 'Uncategorized', 1 FROM users
+  WHERE id NOT IN (SELECT user_id FROM cookbooks WHERE is_default = 1)
+`)
+
 // --- Users ---
 
 export function getOrCreateUser(userId) {
   const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(userId)
-  if (existing) return existing
+  if (existing) {
+    // Ensure they have an Uncategorized cookbook (safety net)
+    const hasDefault = db.prepare('SELECT id FROM cookbooks WHERE user_id = ? AND is_default = 1').get(userId)
+    if (!hasDefault) {
+      db.prepare('INSERT INTO cookbooks (user_id, name, is_default) VALUES (?, ?, 1)').run(userId, 'Uncategorized')
+    }
+    return existing
+  }
   db.prepare('INSERT INTO users (id) VALUES (?)').run(userId)
+  db.prepare('INSERT INTO cookbooks (user_id, name, is_default) VALUES (?, ?, 1)').run(userId, 'Uncategorized')
   return db.prepare('SELECT * FROM users WHERE id = ?').get(userId)
 }
 
@@ -54,7 +75,7 @@ export function getCookbooks(userId) {
     LEFT JOIN recipes r ON r.cookbook_id = c.id
     WHERE c.user_id = ?
     GROUP BY c.id
-    ORDER BY c.created_at DESC
+    ORDER BY c.is_default DESC, c.created_at DESC
   `).all(userId)
 }
 
@@ -78,6 +99,8 @@ export function createCookbook(userId, name) {
 }
 
 export function deleteCookbook(id, userId) {
+  const cb = db.prepare('SELECT * FROM cookbooks WHERE id = ? AND user_id = ?').get(id, userId)
+  if (!cb || cb.is_default) return null
   return db.prepare('DELETE FROM cookbooks WHERE id = ? AND user_id = ?').run(id, userId)
 }
 

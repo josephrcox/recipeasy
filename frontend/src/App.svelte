@@ -56,5 +56,5 @@
 {:else if route.page === 'recipe'}
   <RecipeView recipeId={route.recipeId} cookbookId={route.cookbookId} {route} onNavigate={navigate} />
 {:else if route.page === 'analyze'}
-  <Analyze cookbookId={route.cookbookId} {route} onNavigate={navigate} />
+  <Analyze {route} onNavigate={navigate} />
 {/if}

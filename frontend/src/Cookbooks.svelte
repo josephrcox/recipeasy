@@ -93,7 +93,9 @@
   {:else}
     <div class="grid">
       {#each cookbooks as cb}
-        <button class="card" onclick={() => onNavigate('cookbook', { cookbookId: cb.id })}>
+        <div class="card" role="button" tabindex="0"
+          onclick={() => onNavigate('cookbook', { cookbookId: cb.id })}
+          onkeydown={(e) => e.key === 'Enter' && onNavigate('cookbook', { cookbookId: cb.id })}>
           <div class="card-img">
             {#if cb.cover_url}
               <img src={cb.cover_url} alt={cb.name} />
@@ -101,13 +103,15 @@
               <div class="card-img-placeholder">🍽️</div>
             {/if}
             <div class="card-gradient"></div>
-            <button class="card-delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }}>✕</button>
+            {#if !cb.is_default}
+              <button class="card-delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }}>✕</button>
+            {/if}
           </div>
           <div class="card-info">
             <span class="card-name">{cb.name}</span>
             <span class="card-count">{cb.recipe_count} recipe{cb.recipe_count !== 1 ? 's' : ''}</span>
           </div>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}
@@ -185,6 +189,8 @@
     display: flex;
     flex-direction: column;
     transition: transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   .card:active { transform: scale(0.97); }
 

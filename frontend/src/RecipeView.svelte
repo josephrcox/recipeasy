@@ -6,15 +6,43 @@
   let { recipeId, cookbookId, onNavigate, route } = $props()
   let recipe = $state(null)
   let error = $state(null)
+  let cookbooks = $state([])
+  let currentCookbookId = $state(cookbookId)
+  let moving = $state(false)
+  let moveSuccess = $state(false)
 
   async function load() {
     try {
-      const res = await fetch(`/api/recipes/${recipeId}`, { credentials: 'include' })
-      if (!res.ok) throw new Error('Recipe not found')
-      recipe = await res.json()
+      const [recRes, cbRes] = await Promise.all([
+        fetch(`/api/recipes/${recipeId}`, { credentials: 'include' }),
+        fetch('/api/cookbooks', { credentials: 'include' })
+      ])
+      if (!recRes.ok) throw new Error('Recipe not found')
+      recipe = await recRes.json()
+      cookbooks = await cbRes.json()
+      currentCookbookId = recipe.cookbook_id
     } catch (err) {
       error = err.message
     }
+  }
+
+  async function moveRecipe(newCookbookId) {
+    if (newCookbookId === currentCookbookId || moving) return
+    moving = true
+    moveSuccess = false
+    try {
+      const res = await fetch(`/api/recipes/${recipeId}/move`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookbookId: newCookbookId })
+      })
+      if (!res.ok) throw new Error('Move failed')
+      currentCookbookId = newCookbookId
+      moveSuccess = true
+      setTimeout(() => { moveSuccess = false }, 2000)
+    } catch {}
+    moving = false
   }
 
   load()
@@ -73,6 +101,24 @@
           <ExternalLink size={13} />
           View original TikTok
         </a>
+      {/if}
+
+      <!-- Move to cookbook -->
+      {#if cookbooks.length > 1}
+        <div class="move-row">
+          <span class="move-label">📁</span>
+          <select
+            class="move-select"
+            value={currentCookbookId}
+            onchange={(e) => moveRecipe(parseInt(e.target.value))}
+            disabled={moving}
+          >
+            {#each cookbooks as cb}
+              <option value={cb.id}>{cb.name}</option>
+            {/each}
+          </select>
+          {#if moveSuccess}<span class="move-ok">Moved ✓</span>{/if}
+        </div>
       {/if}
 
       <div class="divider"></div>
@@ -217,4 +263,27 @@
   /* Tips */
   .tips { list-style: none; display: flex; flex-direction: column; gap: 10px; }
   .tips li { font-size: 0.9rem; line-height: 1.5; color: var(--text-2); }
+
+  /* Move */
+  .move-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+  .move-label { font-size: 1rem; }
+  .move-select {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+    appearance: auto;
+  }
+  .move-select:focus { outline: none; border-color: var(--accent); }
+  .move-ok { font-size: 0.8rem; color: var(--success); font-weight: 600; white-space: nowrap; }
 </style>

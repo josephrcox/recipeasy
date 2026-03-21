@@ -48,7 +48,9 @@
   {:else}
     <div class="grid">
       {#each recipes as recipe}
-        <button class="card" onclick={() => onNavigate('recipe', { recipeId: recipe.id, cookbookId })}>
+        <div class="card" role="button" tabindex="0"
+          onclick={() => onNavigate('recipe', { recipeId: recipe.id, cookbookId })}
+          onkeydown={(e) => e.key === 'Enter' && onNavigate('recipe', { recipeId: recipe.id, cookbookId })}>
           <div class="card-img">
             {#if recipe.thumbnail_url}
               <img src={recipe.thumbnail_url} alt={recipe.title} />
@@ -59,7 +61,7 @@
             <div class="card-title-overlay">{recipe.title}</div>
             <button class="card-delete" onclick={(e) => { e.stopPropagation(); remove(recipe.id) }}>✕</button>
           </div>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}
@@ -101,6 +103,8 @@
     box-shadow: var(--shadow);
     display: block;
     transition: transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   .card:active { transform: scale(0.97); }
 

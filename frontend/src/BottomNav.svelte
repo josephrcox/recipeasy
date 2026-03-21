@@ -11,16 +11,11 @@
     <span>Cookbooks</span>
   </button>
 
-  <button class="nav-fab" onclick={() => {
-    if (route.cookbookId) onNavigate('analyze', { cookbookId: route.cookbookId })
-    else onNavigate('cookbooks')
-  }}>
+  <button class="nav-fab" onclick={() => onNavigate('analyze')}>
     <Plus size={26} strokeWidth={2.5} />
   </button>
 
-  <button class="nav-item" class:active={route.page === 'analyze'} onclick={() => {
-    if (route.cookbookId) onNavigate('analyze', { cookbookId: route.cookbookId })
-  }}>
+  <button class="nav-item" class:active={route.page === 'analyze'} onclick={() => onNavigate('analyze')}>
     <BookOpen size={22} strokeWidth={route.page === 'analyze' ? 2.5 : 1.8} />
     <span>Add Recipe</span>
   </button>
