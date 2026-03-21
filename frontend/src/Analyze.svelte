@@ -9,6 +9,17 @@
   let saving = $state(false)
   let error = $state(null)
 
+  function isTikTokUrl(val) {
+    try {
+      const { hostname } = new URL(val.trim())
+      return ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(hostname)
+    } catch {
+      return false
+    }
+  }
+
+  const urlValid = $derived(isTikTokUrl(url))
+
   const steps = ['downloading', 'extracting', 'analyzing']
   const stepLabels = {
     downloading: 'Downloading video',
@@ -17,7 +28,7 @@
   }
 
   function analyze() {
-    if (!url.trim()) return
+    if (!urlValid) return
     step = 'downloading'
     stepMessage = 'Downloading video...'
     result = null
@@ -94,11 +105,15 @@
       placeholder="Paste a TikTok URL..."
       onkeydown={(e) => e.key === 'Enter' && analyze()}
       disabled={loading}
+      class:invalid={url.trim() && !urlValid}
     />
-    <button onclick={analyze} disabled={loading || !url.trim()}>
+    <button onclick={analyze} disabled={loading || !urlValid}>
       {loading ? '...' : 'Analyze'}
     </button>
   </div>
+  {#if url.trim() && !urlValid}
+    <p class="url-hint">Please enter a valid TikTok URL (tiktok.com)</p>
+  {/if}
 
   {#if loading}
     <div class="progress">
@@ -182,6 +197,8 @@
     min-width: 0;
   }
   input:focus { border-color: #000; }
+  input.invalid { border-color: #e05; }
+  .url-hint { margin: -12px 0 16px; font-size: 0.82rem; color: #e05; }
   button {
     padding: 10px 18px;
     font-size: 0.95rem;
