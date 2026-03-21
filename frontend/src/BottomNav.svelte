@@ -1,8 +1,9 @@
 <script>
-  import { Home, BookOpen, Plus } from 'lucide-svelte'
+  import { Home, NotebookPen, Plus } from 'lucide-svelte'
   let { route, onNavigate } = $props()
 
   const isHome = $derived(route.page === 'cookbooks')
+  const isNotes = $derived(route.page === 'notes')
 </script>
 
 <nav class="bottom-nav">
@@ -15,9 +16,9 @@
     <Plus size={26} strokeWidth={2.5} />
   </button>
 
-  <button class="nav-item" class:active={route.page === 'analyze'} onclick={() => onNavigate('analyze')}>
-    <BookOpen size={22} strokeWidth={route.page === 'analyze' ? 2.5 : 1.8} />
-    <span>Add Recipe</span>
+  <button class="nav-item" class:active={isNotes} onclick={() => onNavigate('notes')}>
+    <NotebookPen size={22} strokeWidth={isNotes ? 2.5 : 1.8} />
+    <span>Notes</span>
   </button>
 </nav>
 

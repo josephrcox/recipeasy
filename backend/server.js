@@ -11,7 +11,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import {
   getOrCreateUser,
   getCookbooks, getCookbook, createCookbook, deleteCookbook, renameCookbook,
-  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl, updateChecked
+  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl, updateChecked,
+  getNotes, saveNotes
 } from './db.js'
 
 const execFileAsync = promisify(execFile)
@@ -154,6 +155,17 @@ app.patch('/api/recipes/:id/move', requireUser, (req, res) => {
   const cb = getCookbook(cookbookId, req.userId)
   if (!cb) return res.status(404).json({ error: 'Target cookbook not found' })
   res.json(moveRecipe(req.params.id, cookbookId))
+})
+
+// --- Notes routes ---
+
+app.get('/api/notes', requireUser, (req, res) => {
+  res.json({ notes: getNotes(req.userId) })
+})
+
+app.patch('/api/notes', requireUser, (req, res) => {
+  saveNotes(req.userId, req.body.notes ?? '')
+  res.json({ ok: true })
 })
 
 // --- Video analysis route ---

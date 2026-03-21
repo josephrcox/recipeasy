@@ -4,6 +4,7 @@
   import CookbookView from './CookbookView.svelte'
   import RecipeView from './RecipeView.svelte'
   import Analyze from './Analyze.svelte'
+  import Notes from './Notes.svelte'
 
   let userId = $state(undefined) // undefined = checking, null = not logged in, string = logged in
 
@@ -59,4 +60,6 @@
   <RecipeView recipeId={route.recipeId} cookbookId={route.cookbookId} {route} onNavigate={navigate} />
 {:else if route.page === 'analyze'}
   <Analyze {route} onNavigate={navigate} />
+{:else if route.page === 'notes'}
+  <Notes {route} onNavigate={navigate} />
 {/if}

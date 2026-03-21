@@ -33,6 +33,12 @@ db.exec(`
   );
 `)
 
+// Migration: add notes column to users
+const hasNotesCol = db.prepare("PRAGMA table_info(users)").all().some(c => c.name === 'notes')
+if (!hasNotesCol) {
+  db.exec("ALTER TABLE users ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+}
+
 // Migration: add checked_json column to recipes
 const hasCheckedCol = db.prepare("PRAGMA table_info(recipes)").all().some(c => c.name === 'checked_json')
 if (!hasCheckedCol) {
@@ -148,6 +154,17 @@ export function saveRecipe(cookbookId, { title, sourceUrl, thumbnailUrl, recipeJ
 
 export function deleteRecipe(id) {
   return db.prepare('DELETE FROM recipes WHERE id = ?').run(id)
+}
+
+// --- Notes ---
+
+export function getNotes(userId) {
+  const row = db.prepare('SELECT notes FROM users WHERE id = ?').get(userId)
+  return row?.notes ?? ''
+}
+
+export function saveNotes(userId, text) {
+  db.prepare('UPDATE users SET notes = ? WHERE id = ?').run(text, userId)
 }
 
 export function moveRecipe(id, cookbookId) {
