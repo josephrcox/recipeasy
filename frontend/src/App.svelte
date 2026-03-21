@@ -7,7 +7,6 @@
 
   let userId = $state(null)
 
-  // Parse current URL into route state
   function parseUrl() {
     const p = new URLSearchParams(window.location.search)
     return {
@@ -19,7 +18,6 @@
 
   let route = $state(parseUrl())
 
-  // Navigate: push a new history entry and update route state
   function navigate(to, params = {}) {
     if (to === 'cookbooks') {
       history.pushState({}, '', '/')
@@ -34,7 +32,6 @@
     return Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null))
   }
 
-  // Handle browser back/forward buttons and iOS swipe-back
   $effect(() => {
     function onPop() { route = parseUrl() }
     window.addEventListener('popstate', onPop)
@@ -53,11 +50,11 @@
 {#if !userId}
   <Login onLogin={(id) => { userId = id; navigate('cookbooks') }} />
 {:else if route.page === 'cookbooks'}
-  <Cookbooks {userId} onNavigate={navigate} onLogout={() => { userId = null; navigate('cookbooks') }} />
+  <Cookbooks {userId} {route} onNavigate={navigate} onLogout={() => { userId = null }} />
 {:else if route.page === 'cookbook'}
-  <CookbookView cookbookId={route.cookbookId} onNavigate={navigate} />
+  <CookbookView cookbookId={route.cookbookId} {route} onNavigate={navigate} />
 {:else if route.page === 'recipe'}
-  <RecipeView recipeId={route.recipeId} cookbookId={route.cookbookId} onNavigate={navigate} />
+  <RecipeView recipeId={route.recipeId} cookbookId={route.cookbookId} {route} onNavigate={navigate} />
 {:else if route.page === 'analyze'}
-  <Analyze cookbookId={route.cookbookId} onNavigate={navigate} />
+  <Analyze cookbookId={route.cookbookId} {route} onNavigate={navigate} />
 {/if}

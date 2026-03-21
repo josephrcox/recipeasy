@@ -1,6 +1,9 @@
 <script>
+  import { ArrowLeft, ExternalLink, Clock, Users, Flame } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
-  let { recipeId, cookbookId, onNavigate } = $props()
+  import BottomNav from './BottomNav.svelte'
+
+  let { recipeId, cookbookId, onNavigate, route } = $props()
   let recipe = $state(null)
   let error = $state(null)
 
@@ -17,89 +20,201 @@
   load()
 </script>
 
-<div class="page">
-  <header>
-    <button class="back" onclick={() => onNavigate('cookbook', { cookbookId })}>← Back</button>
-  </header>
-
+<div class="page-with-nav">
   {#if error}
-    <p class="error">{error}</p>
+    <div class="top-bar">
+      <button class="icon-btn" onclick={() => onNavigate('cookbook', { cookbookId })}>
+        <ArrowLeft size={20} />
+      </button>
+    </div>
+    <div class="error-banner">{error}</div>
   {:else if !recipe}
-    <p class="loading">Loading...</p>
+    <div class="loading">
+      <div class="spinner"></div>
+    </div>
   {:else}
     {@const r = recipe.recipe_json}
-    <div class="recipe">
+
+    <!-- Hero image -->
+    <div class="hero">
       {#if recipe.thumbnail_url}
-        <img class="thumbnail" src={recipe.thumbnail_url} alt={r.title} />
+        <img src={recipe.thumbnail_url} alt={r.title} class="hero-img" />
+      {:else}
+        <div class="hero-placeholder">🍳</div>
+      {/if}
+      <div class="hero-gradient"></div>
+      <button class="back-btn icon-btn" onclick={() => onNavigate('cookbook', { cookbookId })}>
+        <ArrowLeft size={20} />
+      </button>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <h1>{r.title}</h1>
+      {#if r.description}
+        <p class="description">{r.description}</p>
       {/if}
 
-      <h1>{r.title}</h1>
-      {#if r.description}<p class="description">{r.description}</p>{/if}
-
-      <div class="meta-row">
-        {#if r.servings}<span>🍽 {r.servings}</span>{/if}
-        {#if r.prepTime}<span>⏱ Prep: {r.prepTime}</span>{/if}
-        {#if r.cookTime}<span>🔥 Cook: {r.cookTime}</span>{/if}
+      <!-- Meta pills -->
+      <div class="pills">
+        {#if r.servings}
+          <span class="pill"><Users size={13} /> {r.servings}</span>
+        {/if}
+        {#if r.prepTime}
+          <span class="pill"><Clock size={13} /> Prep {r.prepTime}</span>
+        {/if}
+        {#if r.cookTime}
+          <span class="pill"><Flame size={13} /> Cook {r.cookTime}</span>
+        {/if}
       </div>
 
       {#if recipe.source_url}
-        <a class="source-link" href={recipe.source_url} target="_blank" rel="noopener">View original TikTok ↗</a>
+        <a class="source-link" href={recipe.source_url} target="_blank" rel="noopener">
+          <ExternalLink size={13} />
+          View original TikTok
+        </a>
       {/if}
 
-      <h2>Ingredients</h2>
-      <Ingredients recipe={r} />
+      <div class="divider"></div>
 
-      <h2>Instructions</h2>
-      <ol class="instructions">
-        {#each r.instructions as step}
-          <li>{step.replace(/^Step \d+:\s*/i, '')}</li>
-        {/each}
-      </ol>
+      <section>
+        <h2 class="section-title">Ingredients</h2>
+        <Ingredients recipe={r} />
+      </section>
+
+      <div class="divider"></div>
+
+      <section>
+        <h2 class="section-title">Instructions</h2>
+        <ol class="steps">
+          {#each r.instructions as step, i}
+            <li class="step">
+              <div class="step-num">{i + 1}</div>
+              <p>{step.replace(/^Step \d+:\s*/i, '')}</p>
+            </li>
+          {/each}
+        </ol>
+      </section>
 
       {#if r.tips?.length}
-        <h2>Tips</h2>
-        <ul class="tips">
-          {#each r.tips as tip}<li>{tip}</li>{/each}
-        </ul>
+        <div class="divider"></div>
+        <section>
+          <h2 class="section-title">Tips</h2>
+          <ul class="tips">
+            {#each r.tips as tip}
+              <li>💡 {tip}</li>
+            {/each}
+          </ul>
+        </section>
       {/if}
     </div>
   {/if}
 </div>
 
-<style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 0 16px 80px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  header { padding: 20px 0 8px; }
-  .back { background: none; border: none; font-size: 0.9rem; cursor: pointer; color: #555; padding: 0; }
-  .back:hover { color: #000; }
+<BottomNav {route} {onNavigate} />
 
-  /* Portrait thumbnail with a side-strip layout */
-  .thumbnail {
-    width: 100%;
-    max-height: 260px;
+<style>
+  .loading {
+    height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    height: 320px;
+    background: #E8E0D8;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .hero-img {
+    width: 100%; height: 100%;
     object-fit: cover;
     object-position: center top;
-    border-radius: 14px;
-    margin: 12px 0 18px;
+    display: block;
+  }
+  .hero-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 4rem;
+    background: linear-gradient(135deg, #F5F0EB 0%, #E8E0D8 100%);
+  }
+  .hero-gradient {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%);
+  }
+  .back-btn {
+    position: absolute;
+    top: calc(var(--safe-top) + 12px);
+    left: 12px;
+    background: rgba(255,255,255,0.9);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
   }
 
-  h1 { font-size: 1.5rem; margin: 0 0 8px; line-height: 1.2; }
-  h2 { font-size: 1.05rem; margin: 24px 0 10px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-  .description { color: #555; margin: 0 0 10px; font-size: 0.95rem; line-height: 1.5; }
-  .meta-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #666; margin-bottom: 10px; }
-  .source-link { font-size: 0.85rem; color: #555; text-decoration: none; }
-  .source-link:hover { color: #000; text-decoration: underline; }
-  .tips li { margin-bottom: 6px; line-height: 1.5; }
-  .instructions li { margin-bottom: 12px; line-height: 1.65; font-size: 0.95rem; }
-  .error { color: #c00; }
-  .loading { color: #aaa; }
-
-  @media (max-width: 500px) {
-    h1 { font-size: 1.3rem; }
-    .thumbnail { max-height: 200px; }
+  /* Content */
+  .content {
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    margin-top: -24px;
+    position: relative;
+    padding: 24px 16px 32px;
+    min-height: 60vh;
   }
+
+  h1 { font-size: 1.5rem; margin-bottom: 8px; }
+  .description { color: var(--text-2); font-size: 0.93rem; line-height: 1.5; margin-bottom: 14px; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+  .source-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.82rem;
+    color: var(--text-3);
+    text-decoration: none;
+    margin-bottom: 4px;
+  }
+  .source-link:hover { color: var(--accent); }
+
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  .section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+
+  /* Steps */
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step p { font-size: 0.95rem; line-height: 1.6; color: var(--text); }
+
+  /* Tips */
+  .tips { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .tips li { font-size: 0.9rem; line-height: 1.5; color: var(--text-2); }
 </style>

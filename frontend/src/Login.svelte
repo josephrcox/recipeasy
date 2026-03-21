@@ -26,63 +26,89 @@
   }
 </script>
 
-<div class="login-wrap">
-  <div class="login-box">
+<div class="screen">
+  <div class="hero">
+    <div class="logo">🍳</div>
     <h1>Recipeasy</h1>
-    <p>Enter your user ID to access your cookbooks</p>
-    <input
-      type="text"
-      bind:value={userId}
-      placeholder="e.g. 1234"
-      onkeydown={(e) => e.key === 'Enter' && login()}
-      disabled={loading}
-    />
-    {#if error}<p class="error">{error}</p>{/if}
-    <button onclick={login} disabled={loading || !userId.trim()}>
-      {loading ? 'Signing in...' : 'Sign in'}
+    <p>Save recipes from TikTok videos into your personal cookbooks</p>
+  </div>
+
+  <div class="card">
+    <h2>Welcome back</h2>
+    <p class="sub">Enter your user ID to continue</p>
+
+    <div class="field">
+      <input
+        class="input"
+        type="text"
+        bind:value={userId}
+        placeholder="Your user ID"
+        onkeydown={(e) => e.key === 'Enter' && login()}
+        disabled={loading}
+        autocomplete="off"
+        autocapitalize="none"
+      />
+    </div>
+
+    {#if error}<p class="err">{error}</p>{/if}
+
+    <button class="btn-primary" onclick={login} disabled={loading || !userId.trim()}>
+      {loading ? 'Signing in…' : 'Sign in'}
     </button>
   </div>
 </div>
 
 <style>
-  .login-wrap {
-    min-height: 100vh;
+  .screen {
+    min-height: 100dvh;
     display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: env(safe-area-inset-bottom, 24px);
+    background: linear-gradient(160deg, #1A1A1A 0%, #2D1810 50%, #E8532A 100%);
+  }
+
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #f9f9f9;
-  }
-  .login-box {
-    background: white;
-    border: 1px solid #eee;
-    border-radius: 16px;
-    padding: 40px;
-    width: 340px;
+    padding: 48px 32px 40px;
     text-align: center;
-  }
-  h1 { margin: 0 0 8px; font-size: 1.8rem; }
-  p { color: #666; margin: 0 0 24px; font-size: 0.95rem; }
-  input {
-    width: 100%;
-    padding: 10px 14px;
-    font-size: 1rem;
-    border: 1.5px solid #ddd;
-    border-radius: 8px;
-    box-sizing: border-box;
-    outline: none;
-    margin-bottom: 12px;
-  }
-  input:focus { border-color: #000; }
-  button {
-    width: 100%;
-    padding: 11px;
-    font-size: 1rem;
-    background: #000;
     color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
   }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .error { color: #c00; font-size: 0.9rem; margin: 0 0 12px; }
+
+  .logo {
+    font-size: 4rem;
+    margin-bottom: 16px;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+  }
+
+  .hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: -0.03em;
+  }
+
+  .hero p {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.5;
+    max-width: 260px;
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 32px 24px 24px;
+  }
+
+  .card h2 { font-size: 1.5rem; margin-bottom: 4px; }
+  .sub { color: var(--text-2); font-size: 0.9rem; margin-bottom: 24px; }
+
+  .field { margin-bottom: 12px; }
+  .err { color: var(--accent); font-size: 0.85rem; margin-bottom: 12px; }
 </style>

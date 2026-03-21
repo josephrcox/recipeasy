@@ -1,27 +1,18 @@
 <script>
+  import { ArrowLeft, Link, CheckCircle } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
   import Toast from './Toast.svelte'
-  let { cookbookId, onNavigate } = $props()
+  import BottomNav from './BottomNav.svelte'
+
+  let { cookbookId, onNavigate, route } = $props()
 
   let url = $state('')
-  let step = $state(null) // null | 'downloading' | 'extracting' | 'analyzing' | 'done' | 'duplicate' | 'error'
-  let stepMessage = $state('')
+  let step = $state(null)
   let result = $state(null)
   let duplicate = $state(null)
   let saving = $state(false)
   let error = $state(null)
   let showToast = $state(false)
-
-  function isTikTokUrl(val) {
-    try {
-      const { hostname } = new URL(val.trim())
-      return ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(hostname)
-    } catch {
-      return false
-    }
-  }
-
-  const urlValid = $derived(isTikTokUrl(url))
 
   const steps = ['downloading', 'extracting', 'analyzing']
   const stepLabels = {
@@ -30,41 +21,32 @@
     analyzing:   'Analyzing with Claude'
   }
 
+  function isTikTokUrl(val) {
+    try {
+      const { hostname } = new URL(val.trim())
+      return ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(hostname)
+    } catch { return false }
+  }
+
+  const urlValid = $derived(isTikTokUrl(url))
+  const loading = $derived(step && step !== 'done' && step !== 'duplicate' && step !== 'error')
+
   function analyze() {
     if (!urlValid) return
     step = 'downloading'
-    stepMessage = 'Downloading video...'
     result = null
     duplicate = null
     error = null
 
     const es = new EventSource(`/api/analyze?url=${encodeURIComponent(url)}`)
-
     es.onmessage = (e) => {
       const data = JSON.parse(e.data)
-      if (data.step === 'done') {
-        result = data
-        step = 'done'
-        es.close()
-      } else if (data.step === 'duplicate') {
-        duplicate = data
-        step = 'duplicate'
-        es.close()
-      } else if (data.step === 'error') {
-        error = data.error
-        step = 'error'
-        es.close()
-      } else {
-        step = data.step
-        stepMessage = data.message
-      }
+      if (data.step === 'done') { result = data; step = 'done'; es.close() }
+      else if (data.step === 'duplicate') { duplicate = data; step = 'duplicate'; es.close() }
+      else if (data.step === 'error') { error = data.error; step = 'error'; es.close() }
+      else step = data.step
     }
-
-    es.onerror = () => {
-      error = 'Connection lost. Please try again.'
-      step = 'error'
-      es.close()
-    }
+    es.onerror = () => { error = 'Connection lost. Please try again.'; step = 'error'; es.close() }
   }
 
   async function save() {
@@ -84,254 +66,230 @@
       })
       if (!res.ok) throw new Error('Failed to save')
       showToast = true
-      setTimeout(() => onNavigate('cookbook', { cookbookId }), 1000)
+      setTimeout(() => onNavigate('cookbook', { cookbookId }), 1200)
     } catch (err) {
       error = err.message
       saving = false
     }
   }
 
-  function reset() {
-    result = null
-    error = null
-    step = null
-    url = ''
-  }
-
-  const loading = $derived(step && step !== 'done' && step !== 'error')
+  function reset() { result = null; error = null; step = null; url = ''; duplicate = null }
 </script>
 
-<div class="page">
-  <header>
-    <button class="back" onclick={() => onNavigate('cookbook', { cookbookId })}>← Back</button>
-    <h1>Add Recipe</h1>
-  </header>
-
-  <div class="input-row">
-    <input
-      type="text"
-      bind:value={url}
-      placeholder="Paste a TikTok URL..."
-      onkeydown={(e) => e.key === 'Enter' && analyze()}
-      disabled={loading}
-      class:invalid={url.trim() && !urlValid}
-    />
-    <button onclick={analyze} disabled={loading || !urlValid}>
-      {loading ? '...' : 'Analyze'}
+<div class="page-with-nav">
+  <div class="top-bar">
+    <button class="icon-btn" onclick={() => onNavigate('cookbook', { cookbookId })}>
+      <ArrowLeft size={20} />
     </button>
+    <h1>Add Recipe</h1>
   </div>
-  {#if url.trim() && !urlValid}
-    <p class="url-hint">Please enter a valid TikTok URL (tiktok.com)</p>
-  {/if}
 
-  {#if loading}
-    <div class="progress">
-      {#each steps as s}
-        <div class="progress-step" class:active={step === s} class:done={steps.indexOf(step) > steps.indexOf(s)}>
-          <div class="step-dot"></div>
-          <span>{stepLabels[s]}</span>
-        </div>
-      {/each}
+  <div class="body">
+    <!-- URL Input -->
+    <div class="input-card">
+      <div class="input-label">
+        <Link size={14} />
+        TikTok URL
+      </div>
+      <div class="input-row">
+        <input
+          class="input"
+          class:invalid={url.trim() && !urlValid}
+          type="url"
+          inputmode="url"
+          bind:value={url}
+          placeholder="https://www.tiktok.com/…"
+          onkeydown={(e) => e.key === 'Enter' && analyze()}
+          disabled={loading}
+        />
+      </div>
+      {#if url.trim() && !urlValid}
+        <p class="hint">Please enter a valid TikTok URL</p>
+      {/if}
+      <button class="btn-primary" onclick={analyze} disabled={loading || !urlValid}>
+        {loading ? 'Analyzing…' : 'Analyze Video'}
+      </button>
     </div>
-  {/if}
 
-  {#if step === 'error' || error}
-    <div class="error">{error}</div>
-  {/if}
+    <!-- Progress -->
+    {#if loading}
+      <div class="progress-card">
+        {#each steps as s}
+          {@const isDone = steps.indexOf(step) > steps.indexOf(s)}
+          {@const isActive = step === s}
+          <div class="step-row" class:done={isDone} class:active={isActive}>
+            <div class="step-dot" class:done={isDone} class:active={isActive}>
+              {#if isDone}<CheckCircle size={16} />{/if}
+            </div>
+            <span>{stepLabels[s]}</span>
+            {#if isActive}<div class="step-spinner"></div>{/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
 
-  {#if duplicate}
-    <div class="duplicate">
-      <span>⚠️ Already saved as <strong>{duplicate.title}</strong> in <em>{duplicate.cookbookName}</em></span>
-      <button class="view-btn" onclick={() => onNavigate('recipe', { recipeId: duplicate.recipeId, cookbookId: duplicate.cookbookId })}>View recipe</button>
-    </div>
-  {/if}
+    <!-- Error -->
+    {#if error}<div class="error-banner">{error}</div>{/if}
 
-  <Toast message="Recipe saved! 🎉" bind:show={showToast} />
+    <!-- Duplicate warning -->
+    {#if duplicate}
+      <div class="duplicate-card">
+        <p>⚠️ Already saved as <strong>{duplicate.title}</strong> in <em>{duplicate.cookbookName}</em></p>
+        <button class="btn-primary" style="margin-top:12px"
+          onclick={() => onNavigate('recipe', { recipeId: duplicate.recipeId, cookbookId: duplicate.cookbookId })}>
+          View saved recipe
+        </button>
+      </div>
+    {/if}
 
-  {#if result}
-    {@const r = result.recipe}
-    <div class="preview">
-      <div class="preview-hero">
+    <!-- Result preview -->
+    {#if result}
+      {@const r = result.recipe}
+      <div class="result-card">
         {#if result.meta?.thumbnail}
-          <img src={result.meta.thumbnail} alt={r.title} class="thumb" />
+          <img src={result.meta.thumbnail} alt={r.title} class="result-thumb" />
         {/if}
-        <div class="preview-title-block">
+        <div class="result-content">
           <h2>{r.title}</h2>
-          {#if r.description}<p class="desc">{r.description}</p>{/if}
-          <div class="meta-row">
-            {#if r.servings}<span>🍽 {r.servings}</span>{/if}
-            {#if r.prepTime}<span>⏱ {r.prepTime}</span>{/if}
-            {#if r.cookTime}<span>🔥 {r.cookTime}</span>{/if}
+          {#if r.description}<p class="result-desc">{r.description}</p>{/if}
+          <div class="pills" style="margin:10px 0">
+            {#if r.servings}<span class="pill">🍽 {r.servings}</span>{/if}
+            {#if r.prepTime}<span class="pill">⏱ {r.prepTime}</span>{/if}
+            {#if r.cookTime}<span class="pill">🔥 {r.cookTime}</span>{/if}
+          </div>
+
+          <div class="divider" style="margin:14px 0"></div>
+          <h3 style="margin-bottom:10px;font-size:0.92rem">Ingredients</h3>
+          <Ingredients recipe={r} />
+
+          <div class="divider" style="margin:14px 0"></div>
+          <h3 style="margin-bottom:10px;font-size:0.92rem">Instructions</h3>
+          <ol class="result-steps">
+            {#each r.instructions as s, i}
+              <li>
+                <div class="step-num-sm">{i+1}</div>
+                <p>{s.replace(/^Step \d+:\s*/i, '')}</p>
+              </li>
+            {/each}
+          </ol>
+
+          <div class="result-actions">
+            <button class="btn-primary save-btn" onclick={save} disabled={saving}>
+              {saving ? 'Saving…' : '✓ Save to Cookbook'}
+            </button>
+            <button class="btn-ghost" onclick={reset}>Discard</button>
           </div>
         </div>
       </div>
-
-      <h3>Ingredients</h3>
-      <Ingredients recipe={r} />
-
-      <h3>Instructions</h3>
-      <ol>
-        {#each r.instructions as s}
-          <li>{s.replace(/^Step \d+:\s*/i, '')}</li>
-        {/each}
-      </ol>
-
-      <div class="save-row">
-        <button class="save-btn" onclick={save} disabled={saving}>
-          {saving ? 'Saving...' : '✓ Save to Cookbook'}
-        </button>
-        <button class="ghost" onclick={reset}>Discard</button>
-      </div>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>
 
+<Toast message="Recipe saved! 🎉" bind:show={showToast} />
+<BottomNav {route} {onNavigate} />
+
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 0 16px 60px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
+  .top-bar { background: var(--surface); }
 
-  header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 20px 0 16px;
-  }
-  h1 { margin: 0; font-size: 1.2rem; }
-  .back { background: none; border: none; font-size: 0.95rem; cursor: pointer; color: #555; padding: 0; }
-  .back:hover { color: #000; }
+  .body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
-  .input-row { display: flex; gap: 8px; margin-bottom: 20px; }
-  input {
-    flex: 1;
-    padding: 10px 14px;
-    font-size: 1rem;
-    border: 1.5px solid #ddd;
-    border-radius: 8px;
-    outline: none;
-    min-width: 0;
-  }
-  input:focus { border-color: #000; }
-  input.invalid { border-color: #e05; }
-  .url-hint { margin: -12px 0 16px; font-size: 0.82rem; color: #e05; }
-  button {
-    padding: 10px 18px;
-    font-size: 0.95rem;
-    background: #000;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* Progress steps */
-  .progress {
+  .input-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 20px;
-    background: #f9f9f9;
-    border-radius: 12px;
-    margin-bottom: 20px;
+    gap: 10px;
   }
-  .progress-step {
+  .input-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.8rem; font-weight: 600; color: var(--text-2);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .hint { font-size: 0.8rem; color: var(--accent); margin-top: -4px; }
+
+  /* Progress */
+  .progress-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
     display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.95rem;
-    color: #aaa;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .step-row {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 0.9rem; color: var(--text-3);
     transition: color 0.3s;
   }
-  .progress-step.done { color: #2a9d2a; }
-  .progress-step.active { color: #000; font-weight: 500; }
+  .step-row.done { color: var(--success); }
+  .step-row.active { color: var(--text); font-weight: 600; }
   .step-dot {
-    width: 10px; height: 10px;
+    width: 20px; height: 20px;
     border-radius: 50%;
-    background: #ddd;
+    border: 2px solid var(--border);
     flex-shrink: 0;
-    transition: background 0.3s;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.3s, background 0.3s;
   }
-  .progress-step.done .step-dot { background: #2a9d2a; }
-  .progress-step.active .step-dot {
-    background: #000;
-    box-shadow: 0 0 0 3px rgba(0,0,0,0.12);
-    animation: pulse 1.2s ease-in-out infinite;
+  .step-dot.done { border-color: var(--success); color: var(--success); }
+  .step-dot.active { border-color: var(--accent); background: var(--accent-light); }
+  .step-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-left: auto;
   }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(0,0,0,0.12); }
-    50% { box-shadow: 0 0 0 6px rgba(0,0,0,0.06); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Duplicate */
+  .duplicate-card {
+    background: #FFFBE6;
+    border: 1px solid #FFE58F;
+    border-radius: var(--radius);
+    padding: 16px;
+    font-size: 0.9rem;
+    color: #7A5F00;
+    line-height: 1.5;
   }
 
-  .error {
-    padding: 12px 16px;
-    background: #fff0f0;
-    border: 1px solid #ffcccc;
-    border-radius: 8px;
-    color: #c00;
-    margin-bottom: 16px;
-    font-size: 0.9rem;
+  /* Result */
+  .result-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
   }
-  .duplicate {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    background: #fffbe6;
-    border: 1px solid #ffe58f;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 0.9rem;
-    color: #7a5f00;
-    flex-wrap: wrap;
-  }
-  .view-btn {
-    background: #000;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  /* Preview */
-  .preview { border: 1.5px solid #eee; border-radius: 14px; overflow: hidden; }
-  .preview-hero { display: flex; gap: 0; }
-  .thumb {
-    width: 120px;
-    flex-shrink: 0;
+  .result-thumb {
+    width: 100%;
+    height: 200px;
     object-fit: cover;
-    aspect-ratio: 9/16;
-    max-height: 200px;
+    object-position: center top;
+    display: block;
   }
-  .preview-title-block { padding: 16px; flex: 1; min-width: 0; }
-  h2 { margin: 0 0 6px; font-size: 1.1rem; line-height: 1.3; }
-  h3 { font-size: 1rem; margin: 0 20px 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; padding-top: 16px; }
-  .desc { color: #666; font-size: 0.88rem; margin: 0 0 8px; }
-  .meta-row { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.82rem; color: #666; }
-  ol { padding: 0 20px 0 36px; margin: 0 0 8px; }
-  li { margin-bottom: 8px; line-height: 1.5; font-size: 0.95rem; }
+  .result-content { padding: 16px; }
+  .result-content h2 { font-size: 1.2rem; margin-bottom: 6px; }
+  .result-desc { font-size: 0.88rem; color: var(--text-2); line-height: 1.5; }
 
-  .save-row {
-    display: flex;
-    gap: 10px;
-    padding: 16px 20px 20px;
+  .result-steps { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .result-steps li { display: flex; gap: 10px; align-items: flex-start; }
+  .step-num-sm {
+    width: 22px; height: 22px; flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
   }
-  .save-btn { background: #1a7a1a; flex: 1; }
-  .save-btn:hover:not(:disabled) { background: #166016; }
-  .ghost { background: none; border: 1px solid #ddd; color: #555; }
-  .ghost:hover { border-color: #999; }
+  .result-steps p { font-size: 0.88rem; line-height: 1.55; color: var(--text); }
 
-  @media (max-width: 500px) {
-    .thumb { width: 90px; max-height: 160px; }
-    h2 { font-size: 1rem; }
-  }
+  .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  .save-btn { background: var(--success); }
+  .save-btn:hover:not(:disabled) { background: #259052; }
+  .divider { height: 1px; background: var(--border); }
 </style>

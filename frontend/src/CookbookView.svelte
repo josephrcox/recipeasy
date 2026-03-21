@@ -1,5 +1,8 @@
 <script>
-  let { cookbookId, onNavigate } = $props()
+  import { ArrowLeft, Plus } from 'lucide-svelte'
+  import BottomNav from './BottomNav.svelte'
+
+  let { cookbookId, onNavigate, route } = $props()
   let cookbook = $state(null)
   let recipes = $state([])
 
@@ -22,159 +25,133 @@
   load()
 </script>
 
-<div class="page">
-  <header>
-    <button class="back" onclick={() => onNavigate('cookbooks')}>← Cookbooks</button>
-    {#if cookbook}
-      <h1>{cookbook.name}</h1>
-    {/if}
-    <button class="add-btn" onclick={() => onNavigate('analyze', { cookbookId })}>+ Add</button>
-  </header>
+<div class="page-with-nav">
+  <div class="top-bar">
+    <button class="icon-btn" onclick={() => onNavigate('cookbooks')}>
+      <ArrowLeft size={20} />
+    </button>
+    <h1>{cookbook?.name ?? ''}</h1>
+    <button class="icon-btn accent-btn" onclick={() => onNavigate('analyze', { cookbookId })}>
+      <Plus size={20} />
+    </button>
+  </div>
 
   {#if recipes.length === 0}
     <div class="empty">
       <div class="empty-icon">🎬</div>
-      <p>No recipes yet</p>
-      <span>Paste a TikTok cooking video to get started</span>
-      <button onclick={() => onNavigate('analyze', { cookbookId })}>+ Add first recipe</button>
+      <h2>No recipes yet</h2>
+      <p>Paste a TikTok cooking video link to add your first recipe</p>
+      <button class="btn-primary" style="margin-top:24px" onclick={() => onNavigate('analyze', { cookbookId })}>
+        + Add first recipe
+      </button>
     </div>
   {:else}
     <div class="grid">
       {#each recipes as recipe}
-        <div class="card" role="button" tabindex="0"
-          onclick={() => onNavigate('recipe', { recipeId: recipe.id, cookbookId })}
-          onkeydown={(e) => e.key === 'Enter' && onNavigate('recipe', { recipeId: recipe.id, cookbookId })}>
-          <div class="thumb-wrap">
+        <button class="card" onclick={() => onNavigate('recipe', { recipeId: recipe.id, cookbookId })}>
+          <div class="card-img">
             {#if recipe.thumbnail_url}
-              <img src={recipe.thumbnail_url} alt={recipe.title} class="thumb" />
+              <img src={recipe.thumbnail_url} alt={recipe.title} />
             {:else}
-              <div class="thumb-placeholder">🍴</div>
+              <div class="card-placeholder">🍴</div>
             {/if}
-            <button class="delete" onclick={(e) => { e.stopPropagation(); remove(recipe.id) }} aria-label="Remove recipe">✕</button>
+            <div class="card-gradient"></div>
+            <div class="card-title-overlay">{recipe.title}</div>
+            <button class="card-delete" onclick={(e) => { e.stopPropagation(); remove(recipe.id) }}>✕</button>
           </div>
-          <div class="card-body">
-            <div class="card-title">{recipe.title}</div>
-          </div>
-        </div>
+        </button>
       {/each}
     </div>
   {/if}
 </div>
 
+<BottomNav {route} {onNavigate} />
+
 <style>
-  .page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 16px 60px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 20px 0 20px;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 24px;
-  }
-  h1 { margin: 0; font-size: 1.2rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .back { background: none; border: none; font-size: 0.9rem; cursor: pointer; color: #555; padding: 0; white-space: nowrap; flex-shrink: 0; }
-  .back:hover { color: #000; }
-  .add-btn {
-    padding: 8px 14px;
-    font-size: 0.88rem;
-    background: #000;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
+  .top-bar { background: var(--surface); }
+
+  .accent-btn {
+    background: var(--accent-light);
+    color: var(--accent);
   }
 
-  .empty { text-align: center; padding: 64px 0; color: #aaa; }
-  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
-  .empty p { font-size: 1.05rem; font-weight: 600; color: #555; margin: 0 0 6px; }
-  .empty span { font-size: 0.88rem; display: block; margin-bottom: 20px; }
-  .empty button {
-    padding: 10px 20px;
-    font-size: 0.9rem;
-    background: #000;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
+  .empty {
+    padding: 64px 32px;
+    text-align: center;
+    color: var(--text-3);
   }
+  .empty-icon { font-size: 3.5rem; margin-bottom: 16px; }
+  .empty h2 { color: var(--text); margin-bottom: 8px; }
+  .empty p { font-size: 0.9rem; line-height: 1.5; }
 
-  /* Portrait grid — 3 columns on desktop, 2 on mobile */
   .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px;
   }
 
   .card {
-    background: #fff;
-    border: 1.5px solid #eee;
-    border-radius: 12px;
-    overflow: hidden;
+    background: none;
+    border: none;
+    padding: 0;
     cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: block;
+    transition: transform 0.15s;
   }
-  .card:hover { border-color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .card:active { transform: scale(0.97); }
 
-  .thumb-wrap {
+  .card-img {
     position: relative;
-    aspect-ratio: 9 / 14;
-    background: #f5f5f5;
+    aspect-ratio: 9/14;
+    background: #E8E8E4;
     overflow: hidden;
   }
-  .thumb {
-    width: 100%;
-    height: 100%;
+  .card-img img {
+    width: 100%; height: 100%;
     object-fit: cover;
     object-position: center top;
     display: block;
   }
-  .thumb-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .card-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
     font-size: 2rem;
+    background: linear-gradient(135deg, #F5F0EB 0%, #E8E0D8 100%);
   }
-
-  .delete {
+  .card-gradient {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 55%);
+  }
+  .card-title-overlay {
     position: absolute;
-    top: 6px; right: 6px;
-    background: rgba(0,0,0,0.5);
-    border: none;
+    bottom: 10px; left: 10px; right: 10px;
     color: #fff;
-    border-radius: 50%;
-    width: 22px; height: 22px;
-    font-size: 0.65rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .card:hover .delete { opacity: 1; }
-
-  .card-body { padding: 10px 10px 12px; }
-  .card-title {
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
     line-height: 1.3;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-
-  @media (max-width: 500px) {
-    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .delete { opacity: 1; } /* always visible on mobile */
+  .card-delete {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.5);
+    border: none; color: #fff;
+    border-radius: 50%;
+    width: 24px; height: 24px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
   }
+  .card:hover .card-delete,
+  .card-delete:focus { opacity: 1; }
 </style>

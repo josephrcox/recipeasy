@@ -1,9 +1,12 @@
 <script>
-  let { userId, onNavigate, onLogout } = $props()
+  import { LogOut, Plus } from 'lucide-svelte'
+  import BottomNav from './BottomNav.svelte'
+
+  let { userId, onNavigate, onLogout, route } = $props()
   let cookbooks = $state([])
   let newName = $state('')
   let creating = $state(false)
-  let error = $state(null)
+  let showCreate = $state(false)
 
   async function load() {
     const res = await fetch('/api/cookbooks', { credentials: 'include' })
@@ -23,8 +26,7 @@
       const cb = await res.json()
       cookbooks = [cb, ...cookbooks]
       newName = ''
-    } catch (err) {
-      error = err.message
+      showCreate = false
     } finally {
       creating = false
     }
@@ -44,177 +46,194 @@
   load()
 </script>
 
-<div class="page">
-  <header>
-    <h1>Recipeasy</h1>
-    <div class="header-right">
-      <span class="user-id">👤 {userId}</span>
-      <button class="ghost" onclick={logout}>Sign out</button>
+<div class="page-with-nav">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <p class="greeting">Hello 👋</p>
+      <h1>My Cookbooks</h1>
     </div>
-  </header>
+    <button class="icon-btn" onclick={logout} title="Sign out">
+      <LogOut size={18} />
+    </button>
+  </div>
 
-  <div class="content">
-    <h2>My Cookbooks</h2>
-
-    <div class="new-row">
+  <!-- Create sheet -->
+  {#if showCreate}
+    <div class="create-box">
       <input
+        class="input"
         type="text"
         bind:value={newName}
-        placeholder="New cookbook name..."
+        placeholder="Cookbook name…"
         onkeydown={(e) => e.key === 'Enter' && create()}
+        autofocus
       />
-      <button onclick={create} disabled={creating || !newName.trim()}>
-        {creating ? '...' : '+ Create'}
-      </button>
+      <div class="create-actions">
+        <button class="btn-ghost" onclick={() => { showCreate = false; newName = '' }}>Cancel</button>
+        <button class="btn-primary" style="width:auto;padding:13px 24px" onclick={create} disabled={creating || !newName.trim()}>
+          {creating ? '…' : 'Create'}
+        </button>
+      </div>
     </div>
+  {:else}
+    <button class="new-cookbook-btn" onclick={() => showCreate = true}>
+      <Plus size={18} />
+      New Cookbook
+    </button>
+  {/if}
 
-    {#if error}<p class="error">{error}</p>{/if}
-
-    {#if cookbooks.length === 0}
-      <div class="empty">
-        <div class="empty-icon">🍳</div>
-        <p>No cookbooks yet</p>
-        <span>Create one above to start saving recipes</span>
-      </div>
-    {:else}
-      <div class="grid">
-        {#each cookbooks as cb}
-          <div class="card" role="button" tabindex="0"
-            onclick={() => onNavigate('cookbook', { cookbookId: cb.id })}
-            onkeydown={(e) => e.key === 'Enter' && onNavigate('cookbook', { cookbookId: cb.id })}>
-            <div class="card-cover">
-              {#if cb.cover_url}
-                <img src={cb.cover_url} alt={cb.name} class="cover-img" />
-              {:else}
-                <div class="cover-placeholder">📖</div>
-              {/if}
-              <button class="delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }} aria-label="Delete cookbook">✕</button>
-            </div>
-            <div class="card-body">
-              <div class="card-name">{cb.name}</div>
-              <div class="card-count">{cb.recipe_count} recipe{cb.recipe_count !== 1 ? 's' : ''}</div>
-            </div>
+  <!-- Grid -->
+  {#if cookbooks.length === 0}
+    <div class="empty">
+      <div class="empty-icon">📖</div>
+      <h2>No cookbooks yet</h2>
+      <p>Create a cookbook to start saving TikTok recipes</p>
+    </div>
+  {:else}
+    <div class="grid">
+      {#each cookbooks as cb}
+        <button class="card" onclick={() => onNavigate('cookbook', { cookbookId: cb.id })}>
+          <div class="card-img">
+            {#if cb.cover_url}
+              <img src={cb.cover_url} alt={cb.name} />
+            {:else}
+              <div class="card-img-placeholder">🍽️</div>
+            {/if}
+            <div class="card-gradient"></div>
+            <button class="card-delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }}>✕</button>
           </div>
-        {/each}
-      </div>
-    {/if}
-  </div>
+          <div class="card-info">
+            <span class="card-name">{cb.name}</span>
+            <span class="card-count">{cb.recipe_count} recipe{cb.recipe_count !== 1 ? 's' : ''}</span>
+          </div>
+        </button>
+      {/each}
+    </div>
+  {/if}
 </div>
 
-<style>
-  .page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 16px 60px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 0 16px;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 28px;
-  }
-  h1 { margin: 0; font-size: 1.4rem; }
-  h2 { margin: 0 0 16px; font-size: 1.1rem; }
-  .header-right { display: flex; align-items: center; gap: 10px; }
-  .user-id { font-size: 0.82rem; color: #888; }
-  .ghost {
-    background: none;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font-size: 0.82rem;
-    color: #555;
-  }
-  .ghost:hover { border-color: #999; }
+<BottomNav {route} {onNavigate} />
 
-  .new-row { display: flex; gap: 8px; margin-bottom: 20px; }
-  input {
-    flex: 1;
-    padding: 10px 14px;
-    font-size: 1rem;
-    border: 1.5px solid #ddd;
-    border-radius: 8px;
-    outline: none;
-    min-width: 0;
+<style>
+  .header {
+    padding: calc(var(--safe-top) + 20px) 16px 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    background: var(--bg);
   }
-  input:focus { border-color: #000; }
-  button {
-    padding: 10px 16px;
+  .greeting { font-size: 0.85rem; color: var(--text-2); margin-bottom: 2px; }
+  .header h1 { font-size: 1.75rem; }
+
+  .create-box {
+    margin: 0 16px 16px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow);
+  }
+  .create-actions { display: flex; gap: 10px; }
+  .create-actions .btn-ghost { flex: 1; }
+
+  .new-cookbook-btn {
+    margin: 0 16px 20px;
+    padding: 13px 18px;
+    background: var(--surface);
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
     font-size: 0.9rem;
-    background: #000;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
+    font-weight: 600;
+    color: var(--text-2);
     cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 32px);
+    transition: border-color 0.15s, color 0.15s;
   }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .new-cookbook-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   .empty {
-    padding: 56px 0;
+    padding: 64px 32px;
     text-align: center;
-    color: #aaa;
+    color: var(--text-3);
   }
-  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
-  .empty p { font-size: 1.05rem; font-weight: 600; color: #555; margin: 0 0 6px; }
-  .empty span { font-size: 0.88rem; }
+  .empty-icon { font-size: 3.5rem; margin-bottom: 16px; }
+  .empty h2 { color: var(--text); margin-bottom: 8px; }
+  .empty p { font-size: 0.9rem; line-height: 1.5; }
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
+    padding: 0 16px;
   }
 
   .card {
-    background: #fff;
-    border: 1.5px solid #eee;
-    border-radius: 12px;
-    overflow: hidden;
+    background: none;
+    border: none;
     cursor: pointer;
+    text-align: left;
+    padding: 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: transform 0.15s;
   }
-  .card:hover { border-color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .card:active { transform: scale(0.97); }
 
-  .card-cover {
+  .card-img {
     position: relative;
-    aspect-ratio: 4/3;
-    background: #f5f5f5;
+    aspect-ratio: 3/4;
+    background: #E8E8E4;
     overflow: hidden;
   }
-  .cover-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
-  .cover-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; }
-
-  .card-body { padding: 10px 12px 12px; }
-  .card-name { font-weight: 600; font-size: 0.92rem; line-height: 1.3; margin-bottom: 2px; }
-  .card-count { font-size: 0.78rem; color: #888; }
-
-  .delete {
+  .card-img img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+  }
+  .card-img-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #F5F0EB 0%, #E8E0D8 100%);
+  }
+  .card-gradient {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+  }
+  .card-delete {
     position: absolute;
-    top: 6px; right: 6px;
-    background: rgba(0,0,0,0.45);
-    border: none;
-    color: #fff;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.5);
+    border: none; color: #fff;
     border-radius: 50%;
-    width: 22px; height: 22px;
-    font-size: 0.65rem;
+    width: 24px; height: 24px;
+    font-size: 0.7rem;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     opacity: 0;
     transition: opacity 0.15s;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
-  .card:hover .delete { opacity: 1; }
-  .error { color: #c00; font-size: 0.9rem; }
+  .card:hover .card-delete { opacity: 1; }
 
-  @media (max-width: 400px) {
-    .grid { grid-template-columns: 1fr 1fr; }
+  .card-info {
+    background: var(--surface);
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
+  .card-name { font-size: 0.88rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .card-count { font-size: 0.75rem; color: var(--text-3); }
 </style>
