@@ -1,26 +1,57 @@
 <script>
+  import { onMount } from 'svelte'
+
   let { onLogin } = $props()
-  let userId = $state('')
   let error = $state(null)
   let loading = $state(false)
+  let btnEl
 
-  async function login() {
-    if (!userId.trim()) return
+  onMount(async () => {
+    const res = await fetch('/api/config')
+    const { googleClientId } = await res.json()
+
+    await loadGsi()
+
+    google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: handleCredential,
+      use_fedcm_for_prompt: true,
+    })
+
+    google.accounts.id.renderButton(btnEl, {
+      theme: 'outline',
+      size: 'large',
+      shape: 'rectangular',
+      width: 320,
+      text: 'continue_with',
+    })
+  })
+
+  function loadGsi() {
+    return new Promise((resolve) => {
+      if (window.google?.accounts) { resolve(); return }
+      const s = document.createElement('script')
+      s.src = 'https://accounts.google.com/gsi/client'
+      s.onload = resolve
+      document.head.appendChild(s)
+    })
+  }
+
+  async function handleCredential({ credential }) {
     loading = true
     error = null
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch('/api/auth/google', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userId.trim() })
+        body: JSON.stringify({ credential })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       onLogin(data.userId)
     } catch (err) {
       error = err.message
-    } finally {
       loading = false
     }
   }
@@ -30,31 +61,23 @@
   <div class="hero">
     <div class="logo">🍳</div>
     <h1>Recipeasy</h1>
-    <p>Save recipes from TikTok videos into your personal cookbooks</p>
+    <p>Save and generate recipes into your personal cookbooks</p>
   </div>
 
   <div class="card">
-    <h2>Welcome back</h2>
-    <p class="sub">Enter your user ID to continue</p>
+    <h2>Welcome</h2>
+    <p class="sub">Sign in to continue</p>
 
-    <div class="field">
-      <input
-        class="input"
-        type="text"
-        bind:value={userId}
-        placeholder="Your user ID"
-        onkeydown={(e) => e.key === 'Enter' && login()}
-        disabled={loading}
-        autocomplete="off"
-        autocapitalize="none"
-        autofocus
-      />
-    </div>
+    {#if loading}
+      <div class="loading-row">
+        <div class="spinner"></div>
+        <span>Signing in…</span>
+      </div>
+    {:else}
+      <div bind:this={btnEl} class="google-btn-wrap"></div>
+    {/if}
+
     {#if error}<p class="err">{error}</p>{/if}
-
-    <button class="btn-primary" onclick={login} disabled={loading || !userId.trim()}>
-      {loading ? 'Signing in…' : 'Sign in'}
-    </button>
   </div>
 </div>
 
@@ -109,6 +132,29 @@
   .card h2 { font-size: 1.5rem; margin-bottom: 4px; }
   .sub { color: var(--text-2); font-size: 0.9rem; margin-bottom: 24px; }
 
-  .field { margin-bottom: 12px; }
-  .err { color: var(--accent); font-size: 0.85rem; margin-bottom: 12px; }
+  .google-btn-wrap {
+    display: flex;
+    justify-content: center;
+  }
+
+  .loading-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 0;
+    color: var(--text-2);
+    font-size: 0.9rem;
+  }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err { color: var(--accent); font-size: 0.85rem; margin-top: 12px; text-align: center; }
 </style>

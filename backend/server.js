@@ -9,6 +9,9 @@ import { mkdtemp, rm, readdir, readFile, mkdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
+import { OAuth2Client } from 'google-auth-library'
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 import {
   getOrCreateUser,
   getCookbooks, getCookbook, createCookbook, deleteCookbook, renameCookbook,
@@ -77,17 +80,30 @@ function requireUser(req, res, next) {
 
 // --- Auth routes ---
 
-app.post('/api/login', (req, res) => {
-  const { userId } = req.body
-  if (!userId?.trim()) return res.status(400).json({ error: 'User ID is required' })
+app.get('/api/config', (req, res) => {
+  res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID })
+})
 
-  const user = getOrCreateUser(userId.trim())
-  res.cookie('user_id', user.id, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 24 * 365 // 1 year
-  })
-  res.json({ userId: user.id })
+app.post('/api/auth/google', async (req, res) => {
+  const { credential } = req.body
+  if (!credential) return res.status(400).json({ error: 'No credential provided' })
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    })
+    const { email } = ticket.getPayload()
+    const user = getOrCreateUser(email)
+    res.cookie('user_id', user.id, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 365
+    })
+    res.json({ userId: user.id })
+  } catch (err) {
+    console.error(err)
+    res.status(401).json({ error: 'Invalid Google credential' })
+  }
 })
 
 app.post('/api/logout', (req, res) => {
