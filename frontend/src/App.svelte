@@ -5,8 +5,7 @@
   import RecipeView from './RecipeView.svelte'
   import Analyze from './Analyze.svelte'
 
-  let userId = $state(null)
-  let sessionChecked = $state(false)
+  let userId = $state(undefined) // undefined = checking, null = not logged in, string = logged in
 
   function parseUrl() {
     const p = new URLSearchParams(window.location.search)
@@ -40,20 +39,16 @@
   })
 
   async function checkSession() {
-    const [res] = await Promise.all([
-      fetch('/api/me', { credentials: 'include' }),
-      new Promise(r => setTimeout(r, 500))
-    ])
+    const res = await fetch('/api/me', { credentials: 'include' })
     const data = await res.json()
     userId = data.userId || null
-    sessionChecked = true
   }
 
   checkSession()
 </script>
 
-{#if !sessionChecked}
-  <div class="splash"><div class="splash-logo">🍳</div></div>
+{#if userId === undefined}
+  <!-- blank while session check resolves -->
 {:else if !userId}
   <Login onLogin={(id) => { userId = id; navigate('cookbooks') }} />
 {:else if route.page === 'cookbooks'}
@@ -65,21 +60,3 @@
 {:else if route.page === 'analyze'}
   <Analyze {route} onNavigate={navigate} />
 {/if}
-
-<style>
-  .splash {
-    height: 100dvh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(160deg, #1A1A1A 0%, #2D1810 50%, #E8532A 100%);
-  }
-  .splash-logo {
-    font-size: 4rem;
-    animation: pulse 0.8s ease-in-out infinite alternate;
-  }
-  @keyframes pulse {
-    from { transform: scale(1); opacity: 0.8; }
-    to   { transform: scale(1.12); opacity: 1; }
-  }
-</style>

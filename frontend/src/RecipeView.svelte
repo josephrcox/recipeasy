@@ -1,6 +1,7 @@
 <script>
-  import { ArrowLeft, ExternalLink, Clock, Users, Flame } from 'lucide-svelte'
+  import { ArrowLeft, ExternalLink, Clock, Users, Flame, Copy } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
+  import Toast from './Toast.svelte'
   import BottomNav from './BottomNav.svelte'
 
   let { recipeId, cookbookId, onNavigate, route } = $props()
@@ -10,6 +11,46 @@
   let currentCookbookId = $state(cookbookId)
   let moving = $state(false)
   let moveSuccess = $state(false)
+  let showCopyToast = $state(false)
+  let checkedIngredients = $state(new Set())
+  let checkedSteps = $state(new Set())
+
+  async function saveChecked(ingredients, steps) {
+    await fetch(`/api/recipes/${recipeId}/checked`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ingredients: [...ingredients], steps: [...steps] })
+    })
+  }
+
+  function toggleIngredient(key) {
+    const next = new Set(checkedIngredients)
+    next.has(key) ? next.delete(key) : next.add(key)
+    checkedIngredients = next
+    saveChecked(next, checkedSteps)
+  }
+
+  function toggleStep(i) {
+    const next = new Set(checkedSteps)
+    next.has(i) ? next.delete(i) : next.add(i)
+    checkedSteps = next
+    saveChecked(checkedIngredients, next)
+  }
+
+  function copyIngredients(r) {
+    const groups = r.ingredientGroups ?? (r.ingredients ? [{ group: null, items: r.ingredients }] : [])
+    const lines = []
+    for (const g of groups) {
+      if (g.group) lines.push(`${g.emoji ? g.emoji + ' ' : ''}${g.group}`)
+      for (const ing of g.items) {
+        const item = [ing.amount, ing.unit, ing.item].filter(Boolean).join(' ')
+        lines.push(g.group ? `  ${item}` : item)
+      }
+    }
+    navigator.clipboard.writeText(lines.join('\n'))
+    showCopyToast = true
+  }
 
   async function load() {
     try {
@@ -21,6 +62,8 @@
       recipe = await recRes.json()
       cookbooks = await cbRes.json()
       currentCookbookId = recipe.cookbook_id
+      checkedIngredients = new Set(recipe.checked_json?.ingredients ?? [])
+      checkedSteps = new Set(recipe.checked_json?.steps ?? [])
     } catch (err) {
       error = err.message
     }
@@ -124,8 +167,14 @@
       <div class="divider"></div>
 
       <section>
-        <h2 class="section-title">Ingredients</h2>
-        <Ingredients recipe={r} />
+        <div class="section-header">
+          <h2 class="section-title">Ingredients</h2>
+          <button class="copy-btn" onclick={() => copyIngredients(r)}>
+            <Copy size={14} />
+            Copy all
+          </button>
+        </div>
+        <Ingredients recipe={r} checked={checkedIngredients} onToggle={toggleIngredient} />
       </section>
 
       <div class="divider"></div>
@@ -134,7 +183,7 @@
         <h2 class="section-title">Instructions</h2>
         <ol class="steps">
           {#each r.instructions as step, i}
-            <li class="step">
+            <li class="step" class:checked={checkedSteps.has(i)} onclick={() => toggleStep(i)}>
               <div class="step-num">{i + 1}</div>
               <p>{step.replace(/^Step \d+:\s*/i, '')}</p>
             </li>
@@ -157,6 +206,7 @@
   {/if}
 </div>
 
+<Toast message="Ingredients copied! 📋" bind:show={showCopyToast} />
 <BottomNav {route} {onNavigate} />
 
 <style>
@@ -235,18 +285,46 @@
   }
   .source-link:hover { color: var(--accent); }
 
-  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
 
+  section { margin: 0; }
+
+  .section-header {
+    display: flex;
+    align-items: start;
+
+    margin-bottom: 14px;
+  }
   .section-title {
     font-size: 1.05rem;
     font-weight: 700;
-    margin-bottom: 14px;
     color: var(--text);
+    margin-bottom: 14px;
   }
+  .section-header .section-title { margin-bottom: 0; }
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .copy-btn:active { border-color: var(--accent); color: var(--accent); }
 
   /* Steps */
-  .steps { list-style: none; display: flex; flex-direction: column; gap: 16px; }
-  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .step {
+    display: flex; gap: 10px; padding-bottom: 2px; align-items: flex-start;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
   .step-num {
     width: 28px; height: 28px;
     border-radius: 50%;
@@ -257,8 +335,11 @@
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
     margin-top: 1px;
+    transition: background 0.2s;
   }
-  .step p { font-size: 0.95rem; line-height: 1.6; color: var(--text); }
+  .step p { font-size: 0.95rem; line-height: 1.6; color: var(--text); transition: color 0.2s; }
+  .step.checked .step-num { background: var(--border); }
+  .step.checked p { text-decoration: line-through; color: var(--text-3); }
 
   /* Tips */
   .tips { list-style: none; display: flex; flex-direction: column; gap: 10px; }
@@ -270,7 +351,7 @@
     align-items: center;
     gap: 8px;
     margin-top: 10px;
-    margin-bottom: 4px;
+    margin-bottom: -2px;
   }
   .move-label { font-size: 1rem; }
   .move-select {

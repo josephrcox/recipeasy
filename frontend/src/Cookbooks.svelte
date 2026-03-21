@@ -9,10 +9,7 @@
   let showCreate = $state(false)
 
   async function load() {
-    const [res] = await Promise.all([
-      fetch('/api/cookbooks', { credentials: 'include' }),
-      new Promise(r => setTimeout(r, 400))
-    ])
+    const res = await fetch('/api/cookbooks', { credentials: 'include' })
     cookbooks = await res.json()
   }
 

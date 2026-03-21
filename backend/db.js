@@ -33,6 +33,12 @@ db.exec(`
   );
 `)
 
+// Migration: add checked_json column to recipes
+const hasCheckedCol = db.prepare("PRAGMA table_info(recipes)").all().some(c => c.name === 'checked_json')
+if (!hasCheckedCol) {
+  db.exec(`ALTER TABLE recipes ADD COLUMN checked_json TEXT NOT NULL DEFAULT '{"ingredients":[],"steps":[]}'`)
+}
+
 // Migration: add is_default column if it doesn't exist yet
 const hasFlagCol = db.prepare("PRAGMA table_info(cookbooks)").all().some(c => c.name === 'is_default')
 if (!hasFlagCol) {
@@ -121,7 +127,15 @@ export function getRecipes(cookbookId) {
 export function getRecipe(id) {
   const row = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)
   if (!row) return null
-  return { ...row, recipe_json: JSON.parse(row.recipe_json) }
+  return {
+    ...row,
+    recipe_json: JSON.parse(row.recipe_json),
+    checked_json: row.checked_json ? JSON.parse(row.checked_json) : { ingredients: [], steps: [] }
+  }
+}
+
+export function updateChecked(id, checked) {
+  db.prepare('UPDATE recipes SET checked_json = ? WHERE id = ?').run(JSON.stringify(checked), id)
 }
 
 export function saveRecipe(cookbookId, { title, sourceUrl, thumbnailUrl, recipeJson }) {

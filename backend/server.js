@@ -11,7 +11,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import {
   getOrCreateUser,
   getCookbooks, getCookbook, createCookbook, deleteCookbook, renameCookbook,
-  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl
+  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl, updateChecked
 } from './db.js'
 
 const execFileAsync = promisify(execFile)
@@ -140,6 +140,12 @@ app.post('/api/cookbooks/:id/recipes', requireUser, (req, res) => {
 
 app.delete('/api/recipes/:id', requireUser, (req, res) => {
   deleteRecipe(req.params.id)
+  res.json({ ok: true })
+})
+
+app.patch('/api/recipes/:id/checked', requireUser, (req, res) => {
+  const { ingredients, steps } = req.body
+  updateChecked(req.params.id, { ingredients: ingredients ?? [], steps: steps ?? [] })
   res.json({ ok: true })
 })
 

@@ -9,8 +9,7 @@
   async function load() {
     const [cbRes, recRes] = await Promise.all([
       fetch(`/api/cookbooks`, { credentials: 'include' }),
-      fetch(`/api/cookbooks/${cookbookId}/recipes`, { credentials: 'include' }),
-      new Promise(r => setTimeout(r, 400))
+      fetch(`/api/cookbooks/${cookbookId}/recipes`, { credentials: 'include' })
     ])
     const cookbooks = await cbRes.json()
     cookbook = cookbooks.find(c => c.id === cookbookId)

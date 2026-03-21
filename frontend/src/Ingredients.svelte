@@ -1,5 +1,5 @@
 <script>
-  let { recipe } = $props()
+  let { recipe, checked = new Set(), onToggle = () => {} } = $props()
 
   const groups = $derived(
     recipe.ingredientGroups ?? (
@@ -13,7 +13,7 @@
 </script>
 
 <div class="ingredients">
-  {#each groups as g}
+  {#each groups as g, gi}
     {#if g.group}
       <div class="group-label">
         {#if g.emoji}<span>{g.emoji}</span>{/if}
@@ -21,8 +21,12 @@
       </div>
     {/if}
     <ul class:indented={!!g.group}>
-      {#each g.items as ing}
-        <li>{formatItem(ing)}</li>
+      {#each g.items as ing, ii}
+        {@const key = `${gi}-${ii}`}
+        <li
+          class:checked={checked.has(key)}
+          onclick={() => onToggle(key)}
+        >{formatItem(ing)}</li>
       {/each}
     </ul>
   {/each}
@@ -39,7 +43,7 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     margin-top: 14px;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
   }
   .group-label:first-child { margin-top: 0; }
 
@@ -60,5 +64,13 @@
     font-size: 0.92rem;
     line-height: 1.4;
     color: var(--text);
+    margin-bottom: 4px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s, text-decoration 0.2s;
+  }
+  li.checked {
+    text-decoration: line-through;
+    color: var(--text-3);
   }
 </style>
