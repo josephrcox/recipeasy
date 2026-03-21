@@ -116,6 +116,7 @@
           placeholder="https://www.tiktok.com/…"
           onkeydown={(e) => e.key === 'Enter' && analyze()}
           disabled={loading}
+          autofocus
         />
       </div>
       {#if url.trim() && !urlValid}

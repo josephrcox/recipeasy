@@ -47,6 +47,7 @@
         disabled={loading}
         autocomplete="off"
         autocapitalize="none"
+        autofocus
       />
     </div>
 

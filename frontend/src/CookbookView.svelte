@@ -4,12 +4,13 @@
 
   let { cookbookId, onNavigate, route } = $props()
   let cookbook = $state(null)
-  let recipes = $state([])
+  let recipes = $state(null)
 
   async function load() {
     const [cbRes, recRes] = await Promise.all([
       fetch(`/api/cookbooks`, { credentials: 'include' }),
-      fetch(`/api/cookbooks/${cookbookId}/recipes`, { credentials: 'include' })
+      fetch(`/api/cookbooks/${cookbookId}/recipes`, { credentials: 'include' }),
+      new Promise(r => setTimeout(r, 400))
     ])
     const cookbooks = await cbRes.json()
     cookbook = cookbooks.find(c => c.id === cookbookId)
@@ -36,7 +37,15 @@
     </button>
   </div>
 
-  {#if recipes.length === 0}
+  {#if recipes === null}
+    <div class="grid">
+      {#each [1, 2, 3, 4] as _}
+        <div class="skeleton-card">
+          <div class="skeleton-img shimmer"></div>
+        </div>
+      {/each}
+    </div>
+  {:else if recipes.length === 0}
     <div class="empty">
       <div class="empty-icon">🎬</div>
       <h2>No recipes yet</h2>
@@ -158,4 +167,23 @@
   }
   .card:hover .card-delete,
   .card-delete:focus { opacity: 1; }
+
+  /* Skeletons */
+  .skeleton-card {
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .skeleton-img {
+    aspect-ratio: 9/14;
+  }
+  .shimmer {
+    background: linear-gradient(90deg, var(--border) 25%, #e8e4e0 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
 </style>

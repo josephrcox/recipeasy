@@ -3,13 +3,16 @@
   import BottomNav from './BottomNav.svelte'
 
   let { userId, onNavigate, onLogout, route } = $props()
-  let cookbooks = $state([])
+  let cookbooks = $state(null)
   let newName = $state('')
   let creating = $state(false)
   let showCreate = $state(false)
 
   async function load() {
-    const res = await fetch('/api/cookbooks', { credentials: 'include' })
+    const [res] = await Promise.all([
+      fetch('/api/cookbooks', { credentials: 'include' }),
+      new Promise(r => setTimeout(r, 400))
+    ])
     cookbooks = await res.json()
   }
 
@@ -24,7 +27,7 @@
         body: JSON.stringify({ name: newName.trim() })
       })
       const cb = await res.json()
-      cookbooks = [cb, ...cookbooks]
+      cookbooks = [...cookbooks, cb]
       newName = ''
       showCreate = false
     } finally {
@@ -84,7 +87,19 @@
   {/if}
 
   <!-- Grid -->
-  {#if cookbooks.length === 0}
+  {#if cookbooks === null}
+    <div class="grid">
+      {#each [1, 2, 3, 4] as _}
+        <div class="skeleton-card">
+          <div class="skeleton-img shimmer"></div>
+          <div class="skeleton-info">
+            <div class="skeleton-line shimmer" style="width:70%"></div>
+            <div class="skeleton-line shimmer" style="width:40%;margin-top:6px"></div>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else if cookbooks.length === 0}
     <div class="empty">
       <div class="empty-icon">📖</div>
       <h2>No cookbooks yet</h2>
@@ -242,4 +257,33 @@
   }
   .card-name { font-size: 0.88rem; font-weight: 700; color: var(--text); line-height: 1.3; }
   .card-count { font-size: 0.75rem; color: var(--text-3); }
+
+  /* Skeletons */
+  .skeleton-card {
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .skeleton-img {
+    aspect-ratio: 3/4;
+    background: var(--border);
+  }
+  .skeleton-info {
+    background: var(--surface);
+    padding: 10px 12px 12px;
+  }
+  .skeleton-line {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--border);
+  }
+  .shimmer {
+    background: linear-gradient(90deg, var(--border) 25%, #e8e4e0 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
 </style>
