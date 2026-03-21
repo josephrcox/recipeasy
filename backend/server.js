@@ -170,21 +170,42 @@ async function downloadVideo(url, tmpDir) {
 async function extractFrames(videoPath, tmpDir, numFrames = 8) {
   const framesDir = path.join(tmpDir, 'frames')
   await mkdir(framesDir, { recursive: true })
+
+  // Use format-level duration (more reliable than stream-level)
   const { stdout } = await execFileAsync('ffprobe', [
-    '-v', 'quiet', '-print_format', 'json', '-show_streams', videoPath
+    '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', videoPath
   ])
-  const videoStream = JSON.parse(stdout).streams.find(s => s.codec_type === 'video')
-  const duration = parseFloat(videoStream?.duration || 10)
-  const interval = duration / (numFrames + 1)
-  await Promise.all(
-    Array.from({ length: numFrames }, (_, i) => {
-      const ts = (interval * (i + 1)).toFixed(2)
-      const out = path.join(framesDir, `frame_${String(i + 1).padStart(2, '0')}.jpg`)
-      return execFileAsync('ffmpeg', ['-ss', ts, '-i', videoPath, '-vframes', '1', '-q:v', '3', '-vf', 'scale=720:-1', out])
-    })
+  const probeData = JSON.parse(stdout)
+  const duration = parseFloat(
+    probeData.format?.duration ||
+    probeData.streams?.find(s => s.codec_type === 'video')?.duration ||
+    15
   )
-  const frameFiles = await readdir(framesDir)
-  return frameFiles.sort().map(f => path.join(framesDir, f))
+
+  const interval = duration / (numFrames + 1)
+
+  // Extract frames sequentially, skip any that fail
+  const framePaths = []
+  for (let i = 1; i <= numFrames; i++) {
+    const ts = (interval * i).toFixed(2)
+    const out = path.join(framesDir, `frame_${String(i).padStart(2, '0')}.jpg`)
+    try {
+      await execFileAsync('ffmpeg', [
+        '-ss', ts,
+        '-i', videoPath,
+        '-vframes', '1',
+        '-q:v', '3',
+        '-vf', 'scale=720:-2',  // -2 ensures even dimensions, avoids codec errors
+        '-y', out
+      ])
+      framePaths.push(out)
+    } catch (e) {
+      console.warn(`Skipping frame at ${ts}s: ${e.message.split('\n')[0]}`)
+    }
+  }
+
+  if (framePaths.length === 0) throw new Error('Failed to extract any frames from video')
+  return framePaths
 }
 
 async function analyzeWithClaude(frames, meta) {
