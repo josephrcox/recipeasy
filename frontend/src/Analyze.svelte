@@ -1,16 +1,19 @@
 <script>
-  import { ArrowLeft, Link, CheckCircle } from 'lucide-svelte'
+  import { ArrowLeft, Link, CheckCircle, Sparkles } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
   import Toast from './Toast.svelte'
   import BottomNav from './BottomNav.svelte'
 
   let { onNavigate, route } = $props()
 
+  let mode = $state('tiktok') // 'tiktok' | 'generate'
   let url = $state('')
+  let prompt = $state('')
   let step = $state(null)
   let result = $state(null)
   let duplicate = $state(null)
   let saving = $state(false)
+  let generating = $state(false)
   let error = $state(null)
   let showToast = $state(false)
   let cookbooks = $state([])
@@ -88,7 +91,36 @@
     }
   }
 
-  function reset() { result = null; error = null; step = null; url = ''; duplicate = null }
+  async function generate() {
+    if (!prompt.trim() || generating) return
+    generating = true
+    result = null
+    error = null
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim() })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Generation failed')
+      result = { recipe: data.recipe, meta: {} }
+    } catch (err) {
+      error = err.message
+    }
+    generating = false
+  }
+
+  function switchMode(m) {
+    mode = m
+    result = null
+    error = null
+    step = null
+    duplicate = null
+  }
+
+  function reset() { result = null; error = null; step = null; url = ''; prompt = ''; duplicate = null }
 </script>
 
 <div class="page-with-nav">
@@ -100,25 +132,34 @@
   </div>
 
   <div class="body">
-    <!-- URL Input -->
+    <!-- Mode tabs -->
+    <div class="tabs">
+      <button class="tab" class:active={mode === 'tiktok'} onclick={() => switchMode('tiktok')}>
+        <Link size={14} /> From TikTok
+      </button>
+      <button class="tab" class:active={mode === 'generate'} onclick={() => switchMode('generate')}>
+        <Sparkles size={14} /> Generate
+      </button>
+    </div>
+
+    <!-- TikTok input -->
+    {#if mode === 'tiktok'}
     <div class="input-card">
       <div class="input-label">
         <Link size={14} />
         TikTok URL
       </div>
-      <div class="input-row">
-        <input
-          class="input"
-          class:invalid={url.trim() && !urlValid}
-          type="url"
-          inputmode="url"
-          bind:value={url}
-          placeholder="https://www.tiktok.com/…"
-          onkeydown={(e) => e.key === 'Enter' && analyze()}
-          disabled={loading}
-          autofocus
-        />
-      </div>
+      <input
+        class="input"
+        class:invalid={url.trim() && !urlValid}
+        type="url"
+        inputmode="url"
+        bind:value={url}
+        placeholder="https://www.tiktok.com/…"
+        onkeydown={(e) => e.key === 'Enter' && analyze()}
+        disabled={loading}
+        autofocus
+      />
       {#if url.trim() && !urlValid}
         <p class="hint">Please enter a valid TikTok URL</p>
       {/if}
@@ -126,6 +167,33 @@
         {loading ? 'Analyzing…' : 'Analyze Video'}
       </button>
     </div>
+    {/if}
+
+    <!-- Generate input -->
+    {#if mode === 'generate'}
+    <div class="input-card">
+      <div class="input-label">
+        <Sparkles size={14} />
+        What do you want to cook?
+      </div>
+      <input
+        class="input"
+        type="text"
+        bind:value={prompt}
+        placeholder="e.g. Healthy bagel pizza"
+        onkeydown={(e) => e.key === 'Enter' && generate()}
+        disabled={generating}
+        autofocus
+      />
+      <button class="btn-primary generate-btn" onclick={generate} disabled={generating || !prompt.trim()}>
+        {#if generating}
+          <span class="btn-spinner"></span> Generating…
+        {:else}
+          <Sparkles size={16} /> Generate Recipe
+        {/if}
+      </button>
+    </div>
+    {/if}
 
     <!-- Progress -->
     {#if loading}
@@ -220,6 +288,36 @@
   .top-bar { background: var(--surface); }
 
   .body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 4px;
+    box-shadow: var(--shadow);
+    gap: 4px;
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px;
+    border: none;
+    border-radius: calc(var(--radius) - 4px);
+    background: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab.active {
+    background: var(--bg);
+    color: var(--text);
+  }
 
   .input-card {
     background: var(--surface);
@@ -346,4 +444,19 @@
   .save-btn { background: var(--success); }
   .save-btn:hover:not(:disabled) { background: #259052; }
   .divider { height: 1px; background: var(--border); }
+
+  .generate-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
 </style>

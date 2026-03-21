@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+import rateLimit from 'express-rate-limit'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { mkdtemp, rm, readdir, readFile, mkdir } from 'fs/promises'
@@ -53,6 +54,17 @@ app.use(cookieParser())
 const __dirname = path.dirname(new URL(import.meta.url).pathname)
 const frontendDist = path.join(__dirname, '../frontend/dist')
 app.use(express.static(frontendDist))
+
+// --- Rate limiting ---
+
+const aiLimit = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20,
+  keyGenerator: (req) => req.cookies.user_id || req.ip,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 // --- Auth middleware ---
 
@@ -166,6 +178,60 @@ app.get('/api/notes', requireUser, (req, res) => {
 app.patch('/api/notes', requireUser, (req, res) => {
   saveNotes(req.userId, req.body.notes ?? '')
   res.json({ ok: true })
+})
+
+// --- Recipe generation route ---
+
+app.post('/api/generate', requireUser, aiLimit, async (req, res) => {
+  const { prompt } = req.body
+  if (!prompt?.trim()) return res.status(400).json({ error: 'Prompt is required' })
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 4096,
+      system: `You are a recipe creation specialist. Create detailed, accurate, and delicious recipes based on user requests. Return ONLY valid JSON with no extra text.`,
+      messages: [{
+        role: 'user',
+        content: `Create a recipe for: ${prompt.trim()}
+
+Return ONLY a JSON object in this exact format:
+{
+  "title": "Recipe name",
+  "description": "1-2 sentence description",
+  "servings": "e.g. 2-4 servings",
+  "prepTime": "e.g. 10 minutes",
+  "cookTime": "e.g. 30 minutes",
+  "ingredientGroups": [
+    {
+      "group": "Group name or null if single group",
+      "emoji": "🥔",
+      "items": [
+        { "amount": "2", "unit": "cups", "item": "diced potatoes" }
+      ]
+    }
+  ],
+  "instructions": [
+    "Step 1: ...",
+    "Step 2: ..."
+  ],
+  "tips": ["Optional tip 1"]
+}
+
+Group ingredients logically (e.g. by protein, vegetables, sauce, seasoning). Only create a group if there are 2+ ingredients that belong together — if everything is one flat list, use a single group with "group" set to null.
+Pick a fitting food emoji for each group.
+If a field can't be determined, use null.`
+      }]
+    })
+
+    const textBlock = response.content.find(b => b.type === 'text')
+    if (!textBlock) throw new Error('No response from Claude')
+    const jsonText = textBlock.text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    res.json({ recipe: JSON.parse(jsonText) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // --- Video analysis route ---
@@ -311,7 +377,7 @@ function sendEvent(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`)
 }
 
-app.get('/api/analyze', requireUser, async (req, res) => {
+app.get('/api/analyze', requireUser, aiLimit, async (req, res) => {
   const { url } = req.query
   if (!url) return res.status(400).json({ error: 'URL is required' })
 

@@ -50,7 +50,6 @@
         autofocus
       />
     </div>
-
     {#if error}<p class="err">{error}</p>{/if}
 
     <button class="btn-primary" onclick={login} disabled={loading || !userId.trim()}>
