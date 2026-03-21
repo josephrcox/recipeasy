@@ -6,9 +6,40 @@
   import Analyze from './Analyze.svelte'
 
   let userId = $state(null)
-  let page = $state('cookbooks') // cookbooks | cookbook | recipe | analyze
-  let activeCookbookId = $state(null)
-  let activeRecipeId = $state(null)
+
+  // Parse current URL into route state
+  function parseUrl() {
+    const p = new URLSearchParams(window.location.search)
+    return {
+      page:       p.get('page') || 'cookbooks',
+      cookbookId: p.get('cookbookId') ? parseInt(p.get('cookbookId')) : null,
+      recipeId:   p.get('recipeId')   ? parseInt(p.get('recipeId'))   : null,
+    }
+  }
+
+  let route = $state(parseUrl())
+
+  // Navigate: push a new history entry and update route state
+  function navigate(to, params = {}) {
+    if (to === 'cookbooks') {
+      history.pushState({}, '', '/')
+    } else {
+      const qs = new URLSearchParams({ page: to, ...filterNull(params) })
+      history.pushState({}, '', `?${qs}`)
+    }
+    route = parseUrl()
+  }
+
+  function filterNull(obj) {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null))
+  }
+
+  // Handle browser back/forward buttons and iOS swipe-back
+  $effect(() => {
+    function onPop() { route = parseUrl() }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  })
 
   async function checkSession() {
     const res = await fetch('/api/me', { credentials: 'include' })
@@ -17,22 +48,16 @@
   }
 
   checkSession()
-
-  function navigate(to, params = {}) {
-    page = to
-    if (params.cookbookId !== undefined) activeCookbookId = params.cookbookId
-    if (params.recipeId !== undefined) activeRecipeId = params.recipeId
-  }
 </script>
 
 {#if !userId}
-  <Login onLogin={(id) => { userId = id }} />
-{:else if page === 'cookbooks'}
-  <Cookbooks {userId} onNavigate={navigate} onLogout={() => { userId = null }} />
-{:else if page === 'cookbook'}
-  <CookbookView cookbookId={activeCookbookId} onNavigate={navigate} />
-{:else if page === 'recipe'}
-  <RecipeView recipeId={activeRecipeId} cookbookId={activeCookbookId} onNavigate={navigate} />
-{:else if page === 'analyze'}
-  <Analyze cookbookId={activeCookbookId} onNavigate={navigate} />
+  <Login onLogin={(id) => { userId = id; navigate('cookbooks') }} />
+{:else if route.page === 'cookbooks'}
+  <Cookbooks {userId} onNavigate={navigate} onLogout={() => { userId = null; navigate('cookbooks') }} />
+{:else if route.page === 'cookbook'}
+  <CookbookView cookbookId={route.cookbookId} onNavigate={navigate} />
+{:else if route.page === 'recipe'}
+  <RecipeView recipeId={route.recipeId} cookbookId={route.cookbookId} onNavigate={navigate} />
+{:else if route.page === 'analyze'}
+  <Analyze cookbookId={route.cookbookId} onNavigate={navigate} />
 {/if}
