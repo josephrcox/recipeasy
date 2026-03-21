@@ -16,14 +16,42 @@ import {
 
 const execFileAsync = promisify(execFile)
 const app = express()
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 
-const YTDLP = '/Users/joseph/Library/Python/3.9/bin/yt-dlp'
+// Auto-detect yt-dlp binary location
+async function findBinary(name) {
+  try {
+    const { stdout } = await execFileAsync('which', [name])
+    return stdout.trim()
+  } catch {
+    // Common fallback paths
+    const fallbacks = [
+      `/usr/local/bin/${name}`,
+      `/usr/bin/${name}`,
+      `/opt/homebrew/bin/${name}`,
+      `/Users/joseph/Library/Python/3.9/bin/${name}`
+    ]
+    for (const p of fallbacks) {
+      try { await execFileAsync(p, ['--version']); return p } catch {}
+    }
+    throw new Error(`Could not find ${name} binary`)
+  }
+}
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
+const allowedOrigins = process.env.ALLOWED_ORIGIN
+  ? [process.env.ALLOWED_ORIGIN, 'http://localhost:5173']
+  : ['http://localhost:5173']
+
+app.use(cors({ origin: allowedOrigins, credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
+
+// Serve built frontend in production
+const __dirname = path.dirname(new URL(import.meta.url).pathname)
+const frontendDist = path.join(__dirname, '../frontend/dist')
+app.use(express.static(frontendDist))
 
 // --- Auth middleware ---
 
@@ -124,6 +152,7 @@ app.patch('/api/recipes/:id/move', requireUser, (req, res) => {
 // --- Video analysis route ---
 
 async function downloadVideo(url, tmpDir) {
+  const YTDLP = await findBinary('yt-dlp')
   const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s')
   const { stdout: metaJson } = await execFileAsync(YTDLP, ['--dump-json', '--no-playlist', url])
   const meta = JSON.parse(metaJson)
@@ -245,6 +274,11 @@ app.post('/api/analyze', requireUser, async (req, res) => {
   } finally {
     if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
+})
+
+// SPA fallback — serve index.html for any non-API route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDist, 'index.html'))
 })
 
 app.listen(PORT, () => console.log(`Backend running on http://localhost:${PORT}`))
