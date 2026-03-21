@@ -4,7 +4,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { mkdtemp, rm, readdir, readFile } from 'fs/promises'
+import { mkdtemp, rm, readdir, readFile, mkdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
@@ -169,7 +169,7 @@ async function downloadVideo(url, tmpDir) {
 
 async function extractFrames(videoPath, tmpDir, numFrames = 8) {
   const framesDir = path.join(tmpDir, 'frames')
-  await execFileAsync('mkdir', ['-p', framesDir])
+  await mkdir(framesDir, { recursive: true })
   const { stdout } = await execFileAsync('ffprobe', [
     '-v', 'quiet', '-print_format', 'json', '-show_streams', videoPath
   ])
