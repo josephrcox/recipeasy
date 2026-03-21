@@ -6,7 +6,7 @@
 
   let { onNavigate, route } = $props()
 
-  let mode = $state('tiktok') // 'tiktok' | 'generate'
+  let mode = $state('video') // 'video' | 'generate'
   let url = $state('')
   let prompt = $state('')
   let step = $state(null)
@@ -38,14 +38,23 @@
 
   loadCookbooks()
 
-  function isTikTokUrl(val) {
+  function isVideoUrl(val) {
     try {
-      const { hostname } = new URL(val.trim())
-      return ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(hostname)
+      const { hostname, pathname } = new URL(val.trim())
+      const host = hostname.replace(/^www\./, '')
+      // TikTok
+      if (['tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(host)) return true
+      // YouTube Shorts
+      if (host === 'youtube.com' && pathname.startsWith('/shorts/')) return true
+      // Instagram Reels
+      if (host === 'instagram.com' && (pathname.startsWith('/reel/') || pathname.startsWith('/reels/'))) return true
+      // Facebook Reels
+      if ((host === 'facebook.com' || host === 'm.facebook.com' || host === 'fb.watch') && pathname.includes('/reel')) return true
+      return false
     } catch { return false }
   }
 
-  const urlValid = $derived(isTikTokUrl(url))
+  const urlValid = $derived(isVideoUrl(url))
   const loading = $derived(step && step !== 'done' && step !== 'duplicate' && step !== 'error')
 
   function analyze() {
@@ -134,20 +143,20 @@
   <div class="body">
     <!-- Mode tabs -->
     <div class="tabs">
-      <button class="tab" class:active={mode === 'tiktok'} onclick={() => switchMode('tiktok')}>
-        <Link size={14} /> From TikTok
+      <button class="tab" class:active={mode === 'video'} onclick={() => switchMode('video')}>
+        <Link size={14} /> From Video
       </button>
       <button class="tab" class:active={mode === 'generate'} onclick={() => switchMode('generate')}>
         <Sparkles size={14} /> Generate
       </button>
     </div>
 
-    <!-- TikTok input -->
-    {#if mode === 'tiktok'}
+    <!-- Video input -->
+    {#if mode === 'video'}
     <div class="input-card">
       <div class="input-label">
         <Link size={14} />
-        TikTok URL
+        Video URL
       </div>
       <input
         class="input"
@@ -155,13 +164,13 @@
         type="url"
         inputmode="url"
         bind:value={url}
-        placeholder="https://www.tiktok.com/…"
+        placeholder="TikTok, YouTube Shorts, Instagram or Facebook Reels"
         onkeydown={(e) => e.key === 'Enter' && analyze()}
         disabled={loading}
         autofocus
       />
       {#if url.trim() && !urlValid}
-        <p class="hint">Please enter a valid TikTok URL</p>
+        <p class="hint">Paste a TikTok, YouTube Shorts, Instagram Reel, or Facebook Reel URL</p>
       {/if}
       <button class="btn-primary" onclick={analyze} disabled={loading || !urlValid}>
         {loading ? 'Analyzing…' : 'Analyze Video'}
