@@ -71,19 +71,29 @@
     {#if error}<p class="error">{error}</p>{/if}
 
     {#if cookbooks.length === 0}
-      <div class="empty">No cookbooks yet — create one above</div>
+      <div class="empty">
+        <div class="empty-icon">🍳</div>
+        <p>No cookbooks yet</p>
+        <span>Create one above to start saving recipes</span>
+      </div>
     {:else}
       <div class="grid">
         {#each cookbooks as cb}
           <div class="card" role="button" tabindex="0"
             onclick={() => onNavigate('cookbook', { cookbookId: cb.id })}
             onkeydown={(e) => e.key === 'Enter' && onNavigate('cookbook', { cookbookId: cb.id })}>
-            <div class="card-icon">📖</div>
+            <div class="card-cover">
+              {#if cb.cover_url}
+                <img src={cb.cover_url} alt={cb.name} class="cover-img" />
+              {:else}
+                <div class="cover-placeholder">📖</div>
+              {/if}
+              <button class="delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }} aria-label="Delete cookbook">✕</button>
+            </div>
             <div class="card-body">
               <div class="card-name">{cb.name}</div>
               <div class="card-count">{cb.recipe_count} recipe{cb.recipe_count !== 1 ? 's' : ''}</div>
             </div>
-            <button class="delete" onclick={(e) => { e.stopPropagation(); remove(cb.id) }} aria-label="Delete cookbook">✕</button>
           </div>
         {/each}
       </div>
@@ -145,7 +155,14 @@
   }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .empty { padding: 48px 0; text-align: center; color: #aaa; font-size: 0.95rem; }
+  .empty {
+    padding: 56px 0;
+    text-align: center;
+    color: #aaa;
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty p { font-size: 1.05rem; font-weight: 600; color: #555; margin: 0 0 6px; }
+  .empty span { font-size: 0.88rem; }
 
   .grid {
     display: grid;
@@ -157,30 +174,44 @@
     background: #fff;
     border: 1.5px solid #eee;
     border-radius: 12px;
-    padding: 16px;
+    overflow: hidden;
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    position: relative;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .card:hover { border-color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  .card-icon { font-size: 1.8rem; }
-  .card-name { font-weight: 600; font-size: 0.95rem; line-height: 1.3; padding-right: 20px; }
-  .card-count { font-size: 0.8rem; color: #888; }
+
+  .card-cover {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: #f5f5f5;
+    overflow: hidden;
+  }
+  .cover-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+  .cover-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; }
+
+  .card-body { padding: 10px 12px 12px; }
+  .card-name { font-weight: 600; font-size: 0.92rem; line-height: 1.3; margin-bottom: 2px; }
+  .card-count { font-size: 0.78rem; color: #888; }
+
   .delete {
     position: absolute;
-    top: 10px; right: 10px;
-    background: none;
+    top: 6px; right: 6px;
+    background: rgba(0,0,0,0.45);
     border: none;
-    color: #ccc;
+    color: #fff;
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    font-size: 0.65rem;
     cursor: pointer;
-    font-size: 0.8rem;
-    padding: 2px;
-    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
   }
-  .delete:hover { color: #c00; }
+  .card:hover .delete { opacity: 1; }
   .error { color: #c00; font-size: 0.9rem; }
 
   @media (max-width: 400px) {

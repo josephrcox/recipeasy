@@ -11,7 +11,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import {
   getOrCreateUser,
   getCookbooks, getCookbook, createCookbook, deleteCookbook, renameCookbook,
-  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe
+  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl
 } from './db.js'
 
 const execFileAsync = promisify(execFile)
@@ -304,6 +304,13 @@ app.get('/api/analyze', requireUser, async (req, res) => {
 
   let tmpDir = null
   try {
+    // Duplicate check before doing any work
+    const existing = findRecipeByUrl(req.userId, url)
+    if (existing) {
+      sendEvent(res, { step: 'duplicate', title: existing.title, cookbookName: existing.cookbook_name, cookbookId: existing.cookbook_id, recipeId: existing.id })
+      return
+    }
+
     tmpDir = await mkdtemp(path.join(tmpdir(), 'recipeasy-'))
 
     sendEvent(res, { step: 'downloading', message: 'Downloading video...' })

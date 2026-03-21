@@ -46,13 +46,26 @@ export function getOrCreateUser(userId) {
 
 export function getCookbooks(userId) {
   return db.prepare(`
-    SELECT c.*, COUNT(r.id) as recipe_count
+    SELECT c.*, COUNT(r.id) as recipe_count,
+      (SELECT r2.thumbnail_url FROM recipes r2
+       WHERE r2.cookbook_id = c.id
+       ORDER BY r2.created_at ASC LIMIT 1) as cover_url
     FROM cookbooks c
     LEFT JOIN recipes r ON r.cookbook_id = c.id
     WHERE c.user_id = ?
     GROUP BY c.id
     ORDER BY c.created_at DESC
   `).all(userId)
+}
+
+export function findRecipeByUrl(userId, sourceUrl) {
+  return db.prepare(`
+    SELECT r.id, r.title, c.name as cookbook_name, c.id as cookbook_id
+    FROM recipes r
+    JOIN cookbooks c ON c.id = r.cookbook_id
+    WHERE c.user_id = ? AND r.source_url = ?
+    LIMIT 1
+  `).get(userId, sourceUrl)
 }
 
 export function getCookbook(id, userId) {

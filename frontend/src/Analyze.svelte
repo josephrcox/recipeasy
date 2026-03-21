@@ -1,13 +1,16 @@
 <script>
   import Ingredients from './Ingredients.svelte'
+  import Toast from './Toast.svelte'
   let { cookbookId, onNavigate } = $props()
 
   let url = $state('')
-  let step = $state(null) // null | 'downloading' | 'extracting' | 'analyzing' | 'done' | 'error'
+  let step = $state(null) // null | 'downloading' | 'extracting' | 'analyzing' | 'done' | 'duplicate' | 'error'
   let stepMessage = $state('')
   let result = $state(null)
+  let duplicate = $state(null)
   let saving = $state(false)
   let error = $state(null)
+  let showToast = $state(false)
 
   function isTikTokUrl(val) {
     try {
@@ -32,6 +35,7 @@
     step = 'downloading'
     stepMessage = 'Downloading video...'
     result = null
+    duplicate = null
     error = null
 
     const es = new EventSource(`/api/analyze?url=${encodeURIComponent(url)}`)
@@ -41,6 +45,10 @@
       if (data.step === 'done') {
         result = data
         step = 'done'
+        es.close()
+      } else if (data.step === 'duplicate') {
+        duplicate = data
+        step = 'duplicate'
         es.close()
       } else if (data.step === 'error') {
         error = data.error
@@ -75,7 +83,8 @@
         })
       })
       if (!res.ok) throw new Error('Failed to save')
-      onNavigate('cookbook', { cookbookId })
+      showToast = true
+      setTimeout(() => onNavigate('cookbook', { cookbookId }), 1000)
     } catch (err) {
       error = err.message
       saving = false
@@ -129,6 +138,15 @@
   {#if step === 'error' || error}
     <div class="error">{error}</div>
   {/if}
+
+  {#if duplicate}
+    <div class="duplicate">
+      <span>⚠️ Already saved as <strong>{duplicate.title}</strong> in <em>{duplicate.cookbookName}</em></span>
+      <button class="view-btn" onclick={() => onNavigate('recipe', { recipeId: duplicate.recipeId, cookbookId: duplicate.cookbookId })}>View recipe</button>
+    </div>
+  {/if}
+
+  <Toast message="Recipe saved! 🎉" bind:show={showToast} />
 
   {#if result}
     {@const r = result.recipe}
@@ -258,6 +276,30 @@
     color: #c00;
     margin-bottom: 16px;
     font-size: 0.9rem;
+  }
+  .duplicate {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    color: #7a5f00;
+    flex-wrap: wrap;
+  }
+  .view-btn {
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
   /* Preview */

@@ -33,8 +33,10 @@
 
   {#if recipes.length === 0}
     <div class="empty">
-      <p>No recipes yet.</p>
-      <button onclick={() => onNavigate('analyze', { cookbookId })}>+ Add your first recipe</button>
+      <div class="empty-icon">🎬</div>
+      <p>No recipes yet</p>
+      <span>Paste a TikTok cooking video to get started</span>
+      <button onclick={() => onNavigate('analyze', { cookbookId })}>+ Add first recipe</button>
     </div>
   {:else}
     <div class="grid">
@@ -89,11 +91,13 @@
     flex-shrink: 0;
   }
 
-  .empty { text-align: center; padding: 60px 0; color: #aaa; }
-  .empty p { margin-bottom: 16px; }
+  .empty { text-align: center; padding: 64px 0; color: #aaa; }
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty p { font-size: 1.05rem; font-weight: 600; color: #555; margin: 0 0 6px; }
+  .empty span { font-size: 0.88rem; display: block; margin-bottom: 20px; }
   .empty button {
     padding: 10px 20px;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     background: #000;
     color: #fff;
     border: none;
