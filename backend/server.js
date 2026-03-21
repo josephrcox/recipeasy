@@ -266,29 +266,45 @@ ${metadataText}`
   return JSON.parse(jsonText)
 }
 
-app.post('/api/analyze', requireUser, async (req, res) => {
-  const { url } = req.body
+// SSE helper
+function sendEvent(res, data) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`)
+}
+
+app.get('/api/analyze', requireUser, async (req, res) => {
+  const { url } = req.query
   if (!url) return res.status(400).json({ error: 'URL is required' })
+
+  // Set up SSE
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
 
   let tmpDir = null
   try {
     tmpDir = await mkdtemp(path.join(tmpdir(), 'recipeasy-'))
-    console.log(`\n[1/3] Downloading: ${url}`)
+
+    sendEvent(res, { step: 'downloading', message: 'Downloading video...' })
     const { videoPath, meta } = await downloadVideo(url, tmpDir)
-    console.log(`[2/3] Extracting frames...`)
+
+    sendEvent(res, { step: 'extracting', message: 'Extracting frames...' })
     const frames = await extractFrames(videoPath, tmpDir)
-    console.log(`[3/3] Analyzing with Claude...`)
+
+    sendEvent(res, { step: 'analyzing', message: 'Analyzing with Claude...' })
     const recipe = await analyzeWithClaude(frames, meta)
-    console.log(`Done: ${recipe.title}`)
-    res.json({
+
+    sendEvent(res, {
+      step: 'done',
       recipe,
       meta: { id: meta.id, uploader: meta.uploader, thumbnail: meta.thumbnail, sourceUrl: url }
     })
   } catch (err) {
     console.error(err)
-    res.status(500).json({ error: err.message })
+    sendEvent(res, { step: 'error', error: err.message })
   } finally {
     if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+    res.end()
   }
 })
 

@@ -1,31 +1,50 @@
 <script>
   import Ingredients from './Ingredients.svelte'
   let { cookbookId, onNavigate } = $props()
+
   let url = $state('')
-  let loading = $state(false)
+  let step = $state(null) // null | 'downloading' | 'extracting' | 'analyzing' | 'done' | 'error'
+  let stepMessage = $state('')
   let result = $state(null)
   let saving = $state(false)
   let error = $state(null)
 
-  async function analyze() {
+  const steps = ['downloading', 'extracting', 'analyzing']
+  const stepLabels = {
+    downloading: 'Downloading video',
+    extracting:  'Extracting frames',
+    analyzing:   'Analyzing with Claude'
+  }
+
+  function analyze() {
     if (!url.trim()) return
-    loading = true
+    step = 'downloading'
+    stepMessage = 'Downloading video...'
     result = null
     error = null
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      result = data
-    } catch (err) {
-      error = err.message
-    } finally {
-      loading = false
+
+    const es = new EventSource(`/api/analyze?url=${encodeURIComponent(url)}`)
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data)
+      if (data.step === 'done') {
+        result = data
+        step = 'done'
+        es.close()
+      } else if (data.step === 'error') {
+        error = data.error
+        step = 'error'
+        es.close()
+      } else {
+        step = data.step
+        stepMessage = data.message
+      }
+    }
+
+    es.onerror = () => {
+      error = 'Connection lost. Please try again.'
+      step = 'error'
+      es.close()
     }
   }
 
@@ -51,6 +70,15 @@
       saving = false
     }
   }
+
+  function reset() {
+    result = null
+    error = null
+    step = null
+    url = ''
+  }
+
+  const loading = $derived(step && step !== 'done' && step !== 'error')
 </script>
 
 <div class="page">
@@ -68,27 +96,33 @@
       disabled={loading}
     />
     <button onclick={analyze} disabled={loading || !url.trim()}>
-      {loading ? 'Analyzing...' : 'Analyze'}
+      {loading ? '...' : 'Analyze'}
     </button>
   </div>
 
   {#if loading}
-    <div class="status">
-      <div class="spinner"></div>
-      Downloading & analyzing video — this takes ~30s...
+    <div class="progress">
+      {#each steps as s}
+        <div class="progress-step" class:active={step === s} class:done={steps.indexOf(step) > steps.indexOf(s)}>
+          <div class="step-dot"></div>
+          <span>{stepLabels[s]}</span>
+        </div>
+      {/each}
     </div>
   {/if}
 
-  {#if error}<div class="error">{error}</div>{/if}
+  {#if step === 'error' || error}
+    <div class="error">{error}</div>
+  {/if}
 
   {#if result}
     {@const r = result.recipe}
     <div class="preview">
-      <div class="preview-header">
+      <div class="preview-hero">
         {#if result.meta?.thumbnail}
           <img src={result.meta.thumbnail} alt={r.title} class="thumb" />
         {/if}
-        <div>
+        <div class="preview-title-block">
           <h2>{r.title}</h2>
           {#if r.description}<p class="desc">{r.description}</p>{/if}
           <div class="meta-row">
@@ -104,8 +138,8 @@
 
       <h3>Instructions</h3>
       <ol>
-        {#each r.instructions as step}
-          <li>{step.replace(/^Step \d+:\s*/i, '')}</li>
+        {#each r.instructions as s}
+          <li>{s.replace(/^Step \d+:\s*/i, '')}</li>
         {/each}
       </ol>
 
@@ -113,39 +147,132 @@
         <button class="save-btn" onclick={save} disabled={saving}>
           {saving ? 'Saving...' : '✓ Save to Cookbook'}
         </button>
-        <button class="ghost" onclick={() => { result = null; url = '' }}>Discard</button>
+        <button class="ghost" onclick={reset}>Discard</button>
       </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .page { max-width: 680px; margin: 0 auto; padding: 0 20px 60px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  header { display: flex; align-items: center; gap: 16px; padding: 24px 0 20px; }
-  h1 { margin: 0; font-size: 1.3rem; }
+  .page {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 16px 60px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 0 16px;
+  }
+  h1 { margin: 0; font-size: 1.2rem; }
   .back { background: none; border: none; font-size: 0.95rem; cursor: pointer; color: #555; padding: 0; }
   .back:hover { color: #000; }
-  .input-row { display: flex; gap: 8px; margin-bottom: 16px; }
-  input { flex: 1; padding: 10px 14px; font-size: 1rem; border: 1.5px solid #ddd; border-radius: 8px; outline: none; }
+
+  .input-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  input {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 1rem;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    outline: none;
+    min-width: 0;
+  }
   input:focus { border-color: #000; }
-  button { padding: 10px 18px; font-size: 0.95rem; background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  button {
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Progress steps */
+  .progress {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .progress-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.95rem;
+    color: #aaa;
+    transition: color 0.3s;
+  }
+  .progress-step.done { color: #2a9d2a; }
+  .progress-step.active { color: #000; font-weight: 500; }
+  .step-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ddd;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .progress-step.done .step-dot { background: #2a9d2a; }
+  .progress-step.active .step-dot {
+    background: #000;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.12);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(0,0,0,0.12); }
+    50% { box-shadow: 0 0 0 6px rgba(0,0,0,0.06); }
+  }
+
+  .error {
+    padding: 12px 16px;
+    background: #fff0f0;
+    border: 1px solid #ffcccc;
+    border-radius: 8px;
+    color: #c00;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+
+  /* Preview */
+  .preview { border: 1.5px solid #eee; border-radius: 14px; overflow: hidden; }
+  .preview-hero { display: flex; gap: 0; }
+  .thumb {
+    width: 120px;
+    flex-shrink: 0;
+    object-fit: cover;
+    aspect-ratio: 9/16;
+    max-height: 200px;
+  }
+  .preview-title-block { padding: 16px; flex: 1; min-width: 0; }
+  h2 { margin: 0 0 6px; font-size: 1.1rem; line-height: 1.3; }
+  h3 { font-size: 1rem; margin: 0 20px 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; padding-top: 16px; }
+  .desc { color: #666; font-size: 0.88rem; margin: 0 0 8px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.82rem; color: #666; }
+  ol { padding: 0 20px 0 36px; margin: 0 0 8px; }
+  li { margin-bottom: 8px; line-height: 1.5; font-size: 0.95rem; }
+
+  .save-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px 20px;
+  }
+  .save-btn { background: #1a7a1a; flex: 1; }
+  .save-btn:hover:not(:disabled) { background: #166016; }
   .ghost { background: none; border: 1px solid #ddd; color: #555; }
   .ghost:hover { border-color: #999; }
-  .status { display: flex; align-items: center; gap: 10px; color: #666; font-size: 0.9rem; margin-bottom: 16px; }
-  .spinner { width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: #000; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .error { padding: 12px 16px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 8px; color: #c00; margin-bottom: 16px; }
-  .preview { border: 1.5px solid #eee; border-radius: 14px; padding: 24px; }
-  .preview-header { display: flex; gap: 16px; margin-bottom: 20px; }
-  .thumb { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
-  h2 { margin: 0 0 6px; font-size: 1.2rem; }
-  h3 { font-size: 1rem; margin: 20px 0 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-  .desc { color: #666; font-size: 0.9rem; margin: 0 0 8px; }
-  .meta-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #666; }
-  ul, ol { padding-left: 20px; margin: 0; }
-  li { margin-bottom: 6px; line-height: 1.5; font-size: 0.95rem; }
-  .save-row { display: flex; gap: 10px; margin-top: 24px; }
-  .save-btn { background: #1a7a1a; }
-  .save-btn:hover:not(:disabled) { background: #166016; }
+
+  @media (max-width: 500px) {
+    .thumb { width: 90px; max-height: 160px; }
+    h2 { font-size: 1rem; }
+  }
 </style>
