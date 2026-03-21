@@ -1,4 +1,5 @@
 <script>
+  import Ingredients from './Ingredients.svelte'
   let { cookbookId, onNavigate } = $props()
   let url = $state('')
   let loading = $state(false)
@@ -99,11 +100,7 @@
       </div>
 
       <h3>Ingredients</h3>
-      <ul>
-        {#each r.ingredients as ing}
-          <li>{#if ing.amount}{ing.amount}{/if}{#if ing.unit} {ing.unit}{/if} {ing.item}</li>
-        {/each}
-      </ul>
+      <Ingredients recipe={r} />
 
       <h3>Instructions</h3>
       <ol>

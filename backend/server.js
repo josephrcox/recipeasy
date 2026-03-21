@@ -225,8 +225,21 @@ Extract the recipe and return ONLY a JSON object in this exact format:
   "servings": "e.g. 2-4 servings",
   "prepTime": "e.g. 10 minutes",
   "cookTime": "e.g. 30 minutes",
-  "ingredients": [
-    { "amount": "2", "unit": "cups", "item": "flour" }
+  "ingredientGroups": [
+    {
+      "group": "Potatoes",
+      "emoji": "🥔",
+      "items": [
+        { "amount": "2", "unit": "cups", "item": "diced potatoes" }
+      ]
+    },
+    {
+      "group": "Beef",
+      "emoji": "🥩",
+      "items": [
+        { "amount": "1", "unit": "lb", "item": "ground beef" }
+      ]
+    }
   ],
   "instructions": [
     "Step 1: ...",
@@ -235,6 +248,9 @@ Extract the recipe and return ONLY a JSON object in this exact format:
   "tips": ["Optional tip 1"]
 }
 
+Group ingredients logically (e.g. by protein, vegetables, sauce, seasoning, toppings).
+Only create a group if there are 2+ ingredients that belong together — if everything is one flat list, use a single group with no group name (set "group" to null).
+Pick a fitting food emoji for each group.
 If a field can't be determined, use null.
 
 Video Metadata:
