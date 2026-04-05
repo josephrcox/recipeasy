@@ -15,7 +15,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 import {
   getOrCreateUser,
   getCookbooks, getCookbook, createCookbook, deleteCookbook, renameCookbook,
-  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl, updateChecked,
+  getRecipes, getRecipe, saveRecipe, deleteRecipe, moveRecipe, findRecipeByUrl, updateChecked, updateRecipeJson,
   getNotes, saveNotes
 } from './db.js'
 
@@ -175,6 +175,13 @@ app.delete('/api/recipes/:id', requireUser, (req, res) => {
 app.patch('/api/recipes/:id/checked', requireUser, (req, res) => {
   const { ingredients, steps } = req.body
   updateChecked(req.params.id, { ingredients: ingredients ?? [], steps: steps ?? [] })
+  res.json({ ok: true })
+})
+
+app.patch('/api/recipes/:id/recipe-json', requireUser, (req, res) => {
+  const { recipeJson } = req.body
+  if (!recipeJson) return res.status(400).json({ error: 'recipeJson is required' })
+  updateRecipeJson(req.params.id, recipeJson)
   res.json({ ok: true })
 })
 

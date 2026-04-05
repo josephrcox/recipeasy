@@ -48,7 +48,7 @@
     <div class="empty">
       <div class="empty-icon">🎬</div>
       <h2>No recipes yet</h2>
-      <p>Paste a TikTok cooking video link to add your first recipe</p>
+      <p>Paste a TikTok, Instagram, Facebook, or YouTube Shorts link to add your first recipe</p>
       <button class="btn-primary" style="margin-top:24px" onclick={() => onNavigate('analyze', { cookbookId })}>
         + Add first recipe
       </button>

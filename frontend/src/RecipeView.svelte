@@ -1,4 +1,5 @@
 <script>
+  import { tick } from 'svelte'
   import { ArrowLeft, ExternalLink, Clock, Users, Flame, Copy } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
   import Toast from './Toast.svelte'
@@ -12,31 +13,73 @@
   let moving = $state(false)
   let moveSuccess = $state(false)
   let showCopyToast = $state(false)
-  let checkedIngredients = $state(new Set())
-  let checkedSteps = $state(new Set())
 
-  async function saveChecked(ingredients, steps) {
-    await fetch(`/api/recipes/${recipeId}/checked`, {
+  function getGroups(r) {
+    return r.ingredientGroups ?? (r.ingredients ? [{ group: null, emoji: null, items: r.ingredients }] : [])
+  }
+
+  async function persistRecipeJson(r) {
+    await fetch(`/api/recipes/${recipeId}/recipe-json`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ingredients: [...ingredients], steps: [...steps] })
+      body: JSON.stringify({ recipeJson: r })
     })
   }
 
-  function toggleIngredient(key) {
-    const next = new Set(checkedIngredients)
-    next.has(key) ? next.delete(key) : next.add(key)
-    checkedIngredients = next
-    saveChecked(next, checkedSteps)
+  function editIngredient(gi, ii, newText) {
+    const r = { ...recipe.recipe_json }
+    const groups = getGroups(r)
+    groups[gi].items[ii] = { item: newText }
+    if (r.ingredientGroups) r.ingredientGroups = groups
+    else r.ingredients = groups[0].items
+    recipe = { ...recipe, recipe_json: r }
+    persistRecipeJson(r)
   }
 
-  function toggleStep(i) {
-    const next = new Set(checkedSteps)
-    next.has(i) ? next.delete(i) : next.add(i)
-    checkedSteps = next
-    saveChecked(checkedIngredients, next)
+  function deleteIngredient(gi, ii) {
+    const r = { ...recipe.recipe_json }
+    const groups = getGroups(r)
+    groups[gi].items = groups[gi].items.filter((_, i) => i !== ii)
+    if (r.ingredientGroups) r.ingredientGroups = groups
+    else r.ingredients = groups[0].items
+    recipe = { ...recipe, recipe_json: r }
+    persistRecipeJson(r)
   }
+
+  let editingStep = $state(null)
+  let editStepValue = $state('')
+  let editStepOriginal = $state('')
+  let editStepInput = $state(null)
+
+  function startEditStep(i, text) {
+    editingStep = i
+    editStepValue = text
+    editStepOriginal = text
+    tick().then(() => editStepInput?.focus())
+  }
+
+  function commitEditStep(i) {
+    if (editingStep !== i) return
+    editingStep = null
+    const trimmed = editStepValue.trim()
+    if (trimmed && trimmed !== editStepOriginal) {
+      const r = { ...recipe.recipe_json, instructions: [...recipe.recipe_json.instructions] }
+      r.instructions[i] = trimmed
+      recipe = { ...recipe, recipe_json: r }
+      persistRecipeJson(r)
+    }
+  }
+
+  function deleteStep(i) {
+    if (!confirm('Delete this step?')) return
+    editingStep = null
+    const r = { ...recipe.recipe_json }
+    r.instructions = r.instructions.filter((_, idx) => idx !== i)
+    recipe = { ...recipe, recipe_json: r }
+    persistRecipeJson(r)
+  }
+
 
   function copyIngredients(r) {
     const groups = r.ingredientGroups ?? (r.ingredients ? [{ group: null, items: r.ingredients }] : [])
@@ -62,8 +105,6 @@
       recipe = await recRes.json()
       cookbooks = await cbRes.json()
       currentCookbookId = recipe.cookbook_id
-      checkedIngredients = new Set(recipe.checked_json?.ingredients ?? [])
-      checkedSteps = new Set(recipe.checked_json?.steps ?? [])
     } catch (err) {
       error = err.message
     }
@@ -142,7 +183,7 @@
       {#if recipe.source_url}
         <a class="source-link" href={recipe.source_url} target="_blank" rel="noopener">
           <ExternalLink size={13} />
-          View original TikTok
+          View original video
         </a>
       {/if}
 
@@ -174,7 +215,7 @@
             Copy all
           </button>
         </div>
-        <Ingredients recipe={r} checked={checkedIngredients} onToggle={toggleIngredient} />
+        <Ingredients recipe={r} onEdit={editIngredient} onDelete={deleteIngredient} />
       </section>
 
       <div class="divider"></div>
@@ -183,9 +224,27 @@
         <h2 class="section-title">Instructions</h2>
         <ol class="steps">
           {#each r.instructions as step, i}
-            <li class="step" class:checked={checkedSteps.has(i)} onclick={() => toggleStep(i)}>
+            {@const text = step.replace(/^Step \d+:\s*/i, '')}
+            <li class="step" class:editing={editingStep === i}>
               <div class="step-num">{i + 1}</div>
-              <p>{step.replace(/^Step \d+:\s*/i, '')}</p>
+              {#if editingStep === i}
+                <textarea
+                  bind:this={editStepInput}
+                  bind:value={editStepValue}
+                  class="step-edit-input"
+                  rows="3"
+                  onblur={() => commitEditStep(i)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Escape') { e.preventDefault(); editingStep = null }
+                  }}
+                ></textarea>
+                <button
+                  class="step-del-btn"
+                  onpointerdown={(e) => { e.preventDefault(); deleteStep(i) }}
+                >✕</button>
+              {:else}
+                <p onclick={() => startEditStep(i, text)}>{text}</p>
+              {/if}
             </li>
           {/each}
         </ol>
@@ -322,7 +381,6 @@
   .steps { list-style: none; display: flex; flex-direction: column; gap: 12px; }
   .step {
     display: flex; gap: 10px; padding-bottom: 2px; align-items: flex-start;
-    cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
   .step-num {
@@ -335,11 +393,39 @@
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
     margin-top: 1px;
-    transition: background 0.2s;
   }
-  .step p { font-size: 0.95rem; line-height: 1.6; color: var(--text); transition: color 0.2s; }
-  .step.checked .step-num { background: var(--border); }
-  .step.checked p { text-decoration: line-through; color: var(--text-3); }
+  .step p {
+    flex: 1;
+    font-size: 0.95rem; line-height: 1.6; color: var(--text);
+    cursor: pointer;
+  }
+  .step-edit-input {
+    flex: 1;
+    border: none;
+    background: none;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text);
+    outline: none;
+    padding: 0;
+    resize: none;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .step-del-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    color: var(--text-3);
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+    margin-top: 4px;
+    transition: color 0.15s;
+  }
+  .step-del-btn:active { color: #e53e3e; }
 
   /* Tips */
   .tips { list-style: none; display: flex; flex-direction: column; gap: 10px; }

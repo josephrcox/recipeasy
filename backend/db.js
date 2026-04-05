@@ -144,6 +144,10 @@ export function updateChecked(id, checked) {
   db.prepare('UPDATE recipes SET checked_json = ? WHERE id = ?').run(JSON.stringify(checked), id)
 }
 
+export function updateRecipeJson(id, recipeJson) {
+  db.prepare('UPDATE recipes SET recipe_json = ? WHERE id = ?').run(JSON.stringify(recipeJson), id)
+}
+
 export function saveRecipe(cookbookId, { title, sourceUrl, thumbnailUrl, recipeJson }) {
   const result = db.prepare(`
     INSERT INTO recipes (cookbook_id, title, source_url, thumbnail_url, recipe_json)

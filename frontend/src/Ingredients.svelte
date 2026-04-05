@@ -1,5 +1,7 @@
 <script>
-  let { recipe, checked = new Set(), onToggle = () => {} } = $props()
+  import { tick } from 'svelte'
+
+  let { recipe, onEdit = null, onDelete = null } = $props()
 
   const groups = $derived(
     recipe.ingredientGroups ?? (
@@ -9,6 +11,35 @@
 
   function formatItem(ing) {
     return [ing.amount, ing.unit, ing.item].filter(Boolean).join(' ')
+  }
+
+  let editingKey = $state(null)
+  let editValue = $state('')
+  let editOriginalValue = $state('')
+  let editInput = $state(null)
+
+  function startEdit(key, text) {
+    if (!onEdit) return
+    editingKey = key
+    editValue = text
+    editOriginalValue = text
+    tick().then(() => editInput?.focus())
+  }
+
+  function commitEdit(gi, ii) {
+    const key = `${gi}-${ii}`
+    if (editingKey !== key) return
+    editingKey = null
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== editOriginalValue) {
+      onEdit(gi, ii, trimmed)
+    }
+  }
+
+  function handleDeleteBtn(gi, ii) {
+    if (!confirm('Delete this ingredient?')) return
+    editingKey = null
+    onDelete?.(gi, ii)
   }
 </script>
 
@@ -23,10 +54,28 @@
     <ul class:indented={!!g.group}>
       {#each g.items as ing, ii}
         {@const key = `${gi}-${ii}`}
-        <li
-          class:checked={checked.has(key)}
-          onclick={() => onToggle(key)}
-        >{formatItem(ing)}</li>
+        {#if editingKey === key}
+          <li class="editing">
+            <input
+              bind:this={editInput}
+              bind:value={editValue}
+              class="edit-input"
+              onblur={() => commitEdit(gi, ii)}
+              onkeydown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); editInput?.blur() }
+                if (e.key === 'Escape') { e.preventDefault(); editingKey = null }
+              }}
+            />
+            <button
+              class="del-btn"
+              onpointerdown={(e) => { e.preventDefault(); handleDeleteBtn(gi, ii) }}
+            >✕</button>
+          </li>
+        {:else}
+          <li onclick={() => startEdit(key, formatItem(ing))} class:tappable={!!onEdit}>
+            {formatItem(ing)}
+          </li>
+        {/if}
       {/each}
     </ul>
   {/each}
@@ -58,6 +107,8 @@
   ul.indented { padding-left: 8px; }
 
   li {
+    display: flex;
+    align-items: center;
     padding: 9px 12px;
     background: var(--bg);
     border-radius: var(--radius-sm);
@@ -65,12 +116,34 @@
     line-height: 1.4;
     color: var(--text);
     margin-bottom: 4px;
-    cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    transition: color 0.2s, text-decoration 0.2s;
+    gap: 6px;
   }
-  li.checked {
-    text-decoration: line-through;
+  li.tappable { cursor: pointer; }
+  li.editing { padding: 6px 8px; }
+
+  .edit-input {
+    flex: 1;
+    border: none;
+    background: none;
+    font-size: 0.92rem;
+    color: var(--text);
+    outline: none;
+    padding: 4px 0;
+    min-width: 0;
+  }
+
+  .del-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 0.8rem;
     color: var(--text-3);
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s;
   }
+  .del-btn:active { color: #e53e3e; }
 </style>

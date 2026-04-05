@@ -1,7 +1,6 @@
 <script>
   import { ArrowLeft, Link, CheckCircle, Sparkles } from 'lucide-svelte'
   import Ingredients from './Ingredients.svelte'
-  import Toast from './Toast.svelte'
   import BottomNav from './BottomNav.svelte'
 
   let { onNavigate, route } = $props()
@@ -15,7 +14,6 @@
   let saving = $state(false)
   let generating = $state(false)
   let error = $state(null)
-  let showToast = $state(false)
   let cookbooks = $state([])
   let selectedCookbookId = $state(null)
 
@@ -38,15 +36,45 @@
 
   loadCookbooks()
 
-  function isTikTokUrl(val) {
+  function isVideoUrl(val) {
     try {
-      const { hostname } = new URL(val.trim())
-      return ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(hostname)
+      const { hostname, pathname } = new URL(val.trim())
+      const host = hostname.replace(/^www\./, '')
+      if (['tiktok.com', 'vm.tiktok.com', 'm.tiktok.com'].includes(host)) return true
+      if (['instagram.com', 'm.instagram.com'].includes(host)) return true
+      if (['facebook.com', 'm.facebook.com', 'fb.watch'].includes(host)) return true
+      if (host === 'youtube.com' && pathname.startsWith('/shorts/')) return true
+      if (host === 'youtu.be') return true
+      return false
     } catch { return false }
   }
 
-  const urlValid = $derived(isTikTokUrl(url))
+  const urlValid = $derived(isVideoUrl(url))
   const loading = $derived(step && step !== 'done' && step !== 'duplicate' && step !== 'error')
+
+  async function autoSave(recipe, meta) {
+    if (!selectedCookbookId) return
+    saving = true
+    try {
+      const res = await fetch(`/api/cookbooks/${selectedCookbookId}/recipes`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: recipe.title,
+          sourceUrl: meta?.sourceUrl ?? null,
+          thumbnailUrl: meta?.thumbnail ?? null,
+          recipeJson: recipe
+        })
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      const saved = await res.json()
+      onNavigate('recipe', { recipeId: saved.id, cookbookId: selectedCookbookId })
+    } catch (err) {
+      error = err.message
+      saving = false
+    }
+  }
 
   function analyze() {
     if (!urlValid) return
@@ -58,37 +86,17 @@
     const es = new EventSource(`/api/analyze?url=${encodeURIComponent(url)}`)
     es.onmessage = (e) => {
       const data = JSON.parse(e.data)
-      if (data.step === 'done') { result = data; step = 'done'; es.close() }
+      if (data.step === 'done') {
+        result = data
+        step = 'done'
+        es.close()
+        autoSave(data.recipe, data.meta)
+      }
       else if (data.step === 'duplicate') { duplicate = data; step = 'duplicate'; es.close() }
       else if (data.step === 'error') { error = data.error; step = 'error'; es.close() }
       else step = data.step
     }
     es.onerror = () => { error = 'Connection lost. Please try again.'; step = 'error'; es.close() }
-  }
-
-  async function save() {
-    if (!result || !selectedCookbookId) return
-    saving = true
-    try {
-      const res = await fetch(`/api/cookbooks/${selectedCookbookId}/recipes`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: result.recipe.title,
-          sourceUrl: result.meta.sourceUrl,
-          thumbnailUrl: result.meta.thumbnail,
-          recipeJson: result.recipe
-        })
-      })
-      if (!res.ok) throw new Error('Failed to save')
-      const saved = await res.json()
-      showToast = true
-      setTimeout(() => onNavigate('recipe', { recipeId: saved.id, cookbookId: selectedCookbookId }), 1200)
-    } catch (err) {
-      error = err.message
-      saving = false
-    }
   }
 
   async function generate() {
@@ -106,10 +114,12 @@
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
       result = { recipe: data.recipe, meta: {} }
+      generating = false
+      await autoSave(data.recipe, {})
     } catch (err) {
       error = err.message
+      generating = false
     }
-    generating = false
   }
 
   function switchMode(m) {
@@ -135,7 +145,7 @@
     <!-- Mode tabs -->
     <div class="tabs">
       <button class="tab" class:active={mode === 'tiktok'} onclick={() => switchMode('tiktok')}>
-        <Link size={14} /> From TikTok
+        <Link size={14} /> From Video
       </button>
       <button class="tab" class:active={mode === 'generate'} onclick={() => switchMode('generate')}>
         <Sparkles size={14} /> Generate
@@ -147,7 +157,7 @@
     <div class="input-card">
       <div class="input-label">
         <Link size={14} />
-        TikTok URL
+        Video URL
       </div>
       <input
         class="input"
@@ -155,13 +165,13 @@
         type="url"
         inputmode="url"
         bind:value={url}
-        placeholder="https://www.tiktok.com/…"
+        placeholder="TikTok, Instagram, Facebook, YouTube Shorts"
         onkeydown={(e) => e.key === 'Enter' && analyze()}
         disabled={loading}
         autofocus
       />
       {#if url.trim() && !urlValid}
-        <p class="hint">Please enter a valid TikTok URL</p>
+        <p class="hint">Please enter a TikTok, Instagram, Facebook, or YouTube Shorts URL</p>
       {/if}
       <button class="btn-primary" onclick={analyze} disabled={loading || !urlValid}>
         {loading ? 'Analyzing…' : 'Analyze Video'}
@@ -259,29 +269,22 @@
 
           <div class="divider" style="margin:14px 0"></div>
 
-          <!-- Cookbook picker -->
-          <div class="cookbook-row">
-            <span class="cookbook-label">📁 Save to</span>
-            <select class="cookbook-select" bind:value={selectedCookbookId}>
-              {#each cookbooks as cb}
-                <option value={cb.id}>{cb.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="result-actions">
-            <button class="btn-primary save-btn" onclick={save} disabled={saving || !selectedCookbookId}>
-              {saving ? 'Saving…' : '✓ Save Recipe'}
+          {#if error}
+            <button class="btn-primary save-btn" onclick={() => autoSave(result.recipe, result.meta)} disabled={saving}>
+              {saving ? 'Saving…' : '↺ Retry save'}
             </button>
-            <button class="btn-ghost" onclick={reset}>Discard</button>
-          </div>
+          {:else}
+            <div class="saving-row">
+              <div class="step-spinner"></div>
+              <span>Saving to your cookbook…</span>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
   </div>
 </div>
 
-<Toast message="Recipe saved! 🎉" bind:show={showToast} />
 <BottomNav {route} {onNavigate} />
 
 <style>
@@ -414,33 +417,15 @@
   }
   .result-steps p { font-size: 0.88rem; line-height: 1.55; color: var(--text); }
 
-  /* Cookbook picker */
-  .cookbook-row {
+
+  .saving-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 14px;
-  }
-  .cookbook-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-  .cookbook-select {
-    flex: 1;
-    padding: 8px 12px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg);
     font-size: 0.88rem;
-    color: var(--text);
-    cursor: pointer;
-    appearance: auto;
+    color: var(--text-2);
+    padding: 4px 0;
   }
-  .cookbook-select:focus { outline: none; border-color: var(--accent); }
-
-  .result-actions { display: flex; flex-direction: column; gap: 10px; }
   .save-btn { background: var(--success); }
   .save-btn:hover:not(:disabled) { background: #259052; }
   .divider { height: 1px; background: var(--border); }
